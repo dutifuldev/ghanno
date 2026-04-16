@@ -57,7 +57,12 @@ func RunMigrations(db *gorm.DB) error {
 		return err
 	}
 
-	entries, err := os.ReadDir(migrationsDir())
+	migrationsDir, err := migrationsDir()
+	if err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		return err
 	}
@@ -82,7 +87,7 @@ func RunMigrations(db *gorm.DB) error {
 			return err
 		}
 
-		contents, err := os.ReadFile(filepath.Join(migrationsDir(), version+".up.sql"))
+		contents, err := os.ReadFile(filepath.Join(migrationsDir, version+".up.sql"))
 		if err != nil {
 			return err
 		}
@@ -97,7 +102,48 @@ func RunMigrations(db *gorm.DB) error {
 	return nil
 }
 
-func migrationsDir() string {
-	_, file, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(file), "..", "..", "migrations")
+func migrationsDir() (string, error) {
+	candidates := []string{}
+	if env := strings.TrimSpace(os.Getenv("PRTAGS_MIGRATIONS_DIR")); env != "" {
+		candidates = append(candidates, env)
+	}
+
+	if _, file, _, ok := runtime.Caller(0); ok {
+		candidates = append(candidates, filepath.Join(filepath.Dir(file), "..", "..", "migrations"))
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(exeDir, "migrations"),
+			filepath.Join(exeDir, "..", "migrations"),
+			filepath.Join(exeDir, "..", "..", "migrations"),
+		)
+	}
+
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(wd, "migrations"),
+			filepath.Join(wd, "..", "migrations"),
+		)
+	}
+
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		candidate = filepath.Clean(candidate)
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+
+		info, err := os.Stat(candidate)
+		if err == nil && info.IsDir() {
+			return candidate, nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+
+	return "", fmt.Errorf("migrations directory not found")
 }
