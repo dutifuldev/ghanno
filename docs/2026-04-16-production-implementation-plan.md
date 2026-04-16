@@ -484,6 +484,56 @@ The practical rule should be:
 
 `PRtags` should still use normal HTTP status codes alongside JSend bodies. JSend is the body contract, not a replacement for HTTP semantics.
 
+### Write Semantics
+
+The production write model should be:
+
+- `GET` for reads
+- `POST` for creation
+- `PATCH` for partial updates to existing resources
+- explicit action endpoints for membership and link operations
+
+That means the API should prefer shapes like:
+
+- `POST /groups`
+- `PATCH /groups/{id}`
+- `POST /groups/{id}/members`
+- `DELETE /groups/{id}/members/{member_id}`
+- `POST /groups/{id}/links`
+- `DELETE /groups/{id}/links/{link_id}`
+
+Every mutating request should support an `Idempotency-Key`.
+
+The implementation should also support optimistic concurrency on mutable resources, using a simple version token such as:
+
+- `row_version`
+- or `updated_at`
+
+That keeps writes safe under retries and concurrent edits without overcomplicating the first implementation.
+
+### JSend Error Policy
+
+The JSend mapping should be explicit:
+
+- `success`
+  - any successful `2xx` response
+- `fail`
+  - validation errors
+  - bad input
+  - unmet preconditions
+  - permission denials
+  - business-level conflicts
+  - normal not-found cases inside the product domain
+- `error`
+  - unexpected server failures
+  - dependency outages
+  - timeouts
+  - queue or rebuild infrastructure failures
+
+The `message` field should stay short and stable.
+
+Machine-readable details should go in `data`.
+
 ### Schema Management
 
 - create field definitions
@@ -494,6 +544,34 @@ The practical rule should be:
 - export a field-definition manifest
 
 Manifest import should be additive and updating by default. It may create new fields and update allowed properties on existing ones, but it should not silently rename, archive, or delete fields. Destructive lifecycle operations should remain explicit API or CLI actions.
+
+### Field Evolution Rules
+
+Field lifecycle should be conservative.
+
+The production rules should be:
+
+- fields may be created
+- fields may be updated in non-destructive ways
+- fields may be archived
+- fields should not be silently deleted once they have values
+
+For enum fields:
+
+- new enum values may be added
+- existing enum values may be deprecated
+- enum values should only be removed once they are no longer in use
+
+For required fields:
+
+- making a field required should apply to future writes
+- it should not retroactively invalidate existing stored values
+
+For renames:
+
+- rename should mean changing the field label or display name
+- the canonical field identity should stay stable
+- destructive rename behavior should not be inferred from manifest import
 
 ### Group Management
 
@@ -559,6 +637,26 @@ The event log should cover:
 - group membership changes
 - group link changes
 - annotation value changes
+
+### Event Vocabulary
+
+The event vocabulary should stay small, boring, and explicit.
+
+The core event types should be:
+
+- `group.created`
+- `group.updated`
+- `group.member_added`
+- `group.member_removed`
+- `group.link_created`
+- `group.link_removed`
+- `field_definition.created`
+- `field_definition.updated`
+- `field_definition.archived`
+- `field_value.set`
+- `field_value.cleared`
+
+The system should not start with highly specialized one-off event names unless they represent genuinely distinct domain actions.
 
 ### `events`
 
@@ -662,6 +760,7 @@ Read behavior can remain simpler at first. The default product choice may be:
 
 - public reads for data that is already being exposed publicly through `ghreplica`
 - write access restricted by GitHub repo permission
+- private-repo reads only for users who have GitHub read access to that repo
 
 If read restrictions become necessary later, they should follow the same GitHub-derived identity model.
 
@@ -688,6 +787,59 @@ Suggested projected fields:
 
 This is useful for list views and result rendering, but it should remain optional and secondary.
 
+The refresh model should be:
+
+- lazy refresh on reads when cached data is missing or obviously stale
+- background refresh during indexing and rebuild jobs
+- explicit freshness metadata on the cached projection
+
+If `ghreplica` is unavailable, `PRtags` should be allowed to serve cached projected data with an explicit freshness signal instead of failing hard for every read.
+
+The projection should stay intentionally small:
+
+- `title`
+- `state`
+- `author`
+- `updated_at`
+- `html_url`
+
+Anything beyond that should need a strong reason.
+
+## Background Job Policy
+
+The production background-job shape should be explicit and shared across rebuild work.
+
+Use one generic `index_jobs` table with:
+
+- `kind`
+- `status`
+- `attempt_count`
+- `lease_owner`
+- `heartbeat_at`
+- `next_attempt_at`
+- `last_error`
+
+Rebuilds should run asynchronously with:
+
+- leases
+- heartbeats
+- retries
+- exponential backoff
+- repo-level batching where possible
+
+The first job kinds should be:
+
+- `search_document_rebuild`
+- `embedding_rebuild`
+
+Operator-facing status should exist at repo level for:
+
+- queue depth
+- in-progress work
+- last success
+- last error
+- freshness state
+
 ## Observability
 
 Production readiness requires explicit observability for both canonical and derived layers.
@@ -709,6 +861,16 @@ Important logs:
 - rebuild job start and finish
 - rebuild failures
 - manifest import results
+
+## Vector Search Defaults
+
+The first production vector stack should be:
+
+- `pgvector` as the PostgreSQL vector extension
+- cosine distance as the default similarity metric
+- one active embedding model per environment at a time
+
+Embedding text should be built deterministically from vectorized fields in a stable order so rebuilds are reproducible.
 
 ## Rollout Plan
 
@@ -772,14 +934,16 @@ Ship:
 
 - higher-quality search UX over real annotated repos
 
-## Open Decisions
+## Remaining Open Decisions
 
-The core implementation direction is clear, but a few policy details still need explicit decisions:
+The core implementation direction is now pinned down enough to start building.
 
-- whether projected GitHub fields are in scope for phase 1 or phase 4
-- which vector extension and distance metric to standardize on first
+The remaining open items are narrower:
 
-These are important, but they do not block implementation of the durable core model.
+- whether cached GitHub projection is needed in phase 1 or can wait until phase 4
+- which concrete embedding provider and model identifier to adopt first
+
+Those details matter, but they do not block implementation of the durable core model.
 
 ## Recommendation
 
