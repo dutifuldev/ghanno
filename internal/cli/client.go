@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -14,6 +15,8 @@ import (
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	authToken  string
+	actorID    string
 }
 
 func NewClient(baseURL string) *Client {
@@ -22,6 +25,8 @@ func NewClient(baseURL string) *Client {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		authToken: firstNonEmptyEnv("PRTAGS_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"),
+		actorID:   firstNonEmptyEnv("PRTAGS_ACTOR", "X_ACTOR"),
 	}
 }
 
@@ -42,6 +47,11 @@ func (c *Client) DoJSON(ctx context.Context, method, path string, payload any) (
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	if strings.TrimSpace(c.authToken) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.authToken))
+	} else if strings.TrimSpace(c.actorID) != "" {
+		req.Header.Set("X-Actor", strings.TrimSpace(c.actorID))
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -57,4 +67,30 @@ func (c *Client) DoJSON(ctx context.Context, method, path string, payload any) (
 		return nil, fmt.Errorf("request failed (%d): %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
 	return raw, nil
+}
+
+func ExtractJSendData(raw []byte) ([]byte, error) {
+	var envelope struct {
+		Status string          `json:"status"`
+		Data   json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil, err
+	}
+	if envelope.Status == "" {
+		return nil, fmt.Errorf("response is not a jsend envelope")
+	}
+	if len(envelope.Data) == 0 {
+		return []byte("null"), nil
+	}
+	return envelope.Data, nil
+}
+
+func firstNonEmptyEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }

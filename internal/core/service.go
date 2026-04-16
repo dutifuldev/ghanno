@@ -274,8 +274,16 @@ func (s *Service) UpdateFieldDefinition(ctx context.Context, actor permissions.A
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&database.FieldDefinition{}).Where("id = ?", field.ID).Updates(updates).Error; err != nil {
-			return err
+		query := tx.Model(&database.FieldDefinition{}).Where("id = ?", field.ID)
+		if input.ExpectedRowVersion != nil {
+			query = query.Where("row_version = ?", *input.ExpectedRowVersion)
+		}
+		result := query.Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if input.ExpectedRowVersion != nil && result.RowsAffected == 0 {
+			return staleRowVersionError(tx, &database.FieldDefinition{}, field.ID, *input.ExpectedRowVersion)
 		}
 		if err := tx.First(&field, field.ID).Error; err != nil {
 			return err
@@ -337,15 +345,21 @@ func (s *Service) ArchiveFieldDefinition(ctx context.Context, actor permissions.
 
 	now := time.Now().UTC()
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&database.FieldDefinition{}).
-			Where("id = ?", field.ID).
-			Updates(map[string]any{
-				"archived_at": now,
-				"updated_by":  actor.ID,
-				"updated_at":  now,
-				"row_version": gorm.Expr("row_version + 1"),
-			}).Error; err != nil {
-			return err
+		query := tx.Model(&database.FieldDefinition{}).Where("id = ?", field.ID)
+		if expectedRowVersion != nil {
+			query = query.Where("row_version = ?", *expectedRowVersion)
+		}
+		result := query.Updates(map[string]any{
+			"archived_at": now,
+			"updated_by":  actor.ID,
+			"updated_at":  now,
+			"row_version": gorm.Expr("row_version + 1"),
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if expectedRowVersion != nil && result.RowsAffected == 0 {
+			return staleRowVersionError(tx, &database.FieldDefinition{}, field.ID, *expectedRowVersion)
 		}
 		if err := tx.First(&field, field.ID).Error; err != nil {
 			return err
@@ -479,6 +493,12 @@ func (s *Service) ImportManifest(ctx context.Context, actor permissions.Actor, o
 						"current_field_type": existing.FieldType,
 						"requested_type":     input.FieldType,
 					},
+				}
+			}
+
+			if existing.FieldType == "enum" || existing.FieldType == "multi_enum" {
+				if err := s.ensureEnumValuesCompatible(ctx, existing, normalizeEnumValues(input.EnumValues)); err != nil {
+					return err
 				}
 			}
 
@@ -635,8 +655,16 @@ func (s *Service) UpdateGroup(ctx context.Context, actor permissions.Actor, grou
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&database.Group{}).Where("id = ?", group.ID).Updates(updates).Error; err != nil {
-			return err
+		query := tx.Model(&database.Group{}).Where("id = ?", group.ID)
+		if input.ExpectedRowVersion != nil {
+			query = query.Where("row_version = ?", *input.ExpectedRowVersion)
+		}
+		result := query.Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if input.ExpectedRowVersion != nil && result.RowsAffected == 0 {
+			return staleRowVersionError(tx, &database.Group{}, group.ID, *input.ExpectedRowVersion)
 		}
 		if err := tx.First(&group, group.ID).Error; err != nil {
 			return err
@@ -1320,34 +1348,44 @@ func (s *Service) collectTargetsForFieldTx(tx *gorm.DB, fieldDefinitionID uint, 
 }
 
 func (s *Service) appendEventTx(tx *gorm.DB, input eventInput) error {
-	var nextSequence int
-	if err := tx.Model(&database.Event{}).
-		Select("COALESCE(MAX(sequence_no), 0) + 1").
-		Where("aggregate_type = ? AND aggregate_key = ?", input.AggregateType, input.AggregateKey).
-		Scan(&nextSequence).Error; err != nil {
-		return err
-	}
-
 	payloadJSON, _ := json.Marshal(input.Payload)
 	metadataJSON, _ := json.Marshal(input.Metadata)
-	event := database.Event{
-		GitHubRepositoryID: input.RepositoryID,
-		AggregateType:      input.AggregateType,
-		AggregateKey:       input.AggregateKey,
-		SequenceNo:         nextSequence,
-		EventType:          input.EventType,
-		ActorType:          input.Actor.Type,
-		ActorID:            input.Actor.ID,
-		RequestID:          input.RequestID,
-		IdempotencyKey:     input.IdempotencyKey,
-		SchemaVersion:      1,
-		PayloadJSON:        datatypes.JSON(payloadJSON),
-		MetadataJSON:       datatypes.JSON(metadataJSON),
-		OccurredAt:         time.Now().UTC(),
+	var event database.Event
+	for attempts := 0; attempts < 5; attempts++ {
+		var nextSequence int
+		if err := tx.Model(&database.Event{}).
+			Select("COALESCE(MAX(sequence_no), 0) + 1").
+			Where("aggregate_type = ? AND aggregate_key = ?", input.AggregateType, input.AggregateKey).
+			Scan(&nextSequence).Error; err != nil {
+			return err
+		}
+
+		event = database.Event{
+			GitHubRepositoryID: input.RepositoryID,
+			AggregateType:      input.AggregateType,
+			AggregateKey:       input.AggregateKey,
+			SequenceNo:         nextSequence,
+			EventType:          input.EventType,
+			ActorType:          input.Actor.Type,
+			ActorID:            input.Actor.ID,
+			RequestID:          input.RequestID,
+			IdempotencyKey:     input.IdempotencyKey,
+			SchemaVersion:      1,
+			PayloadJSON:        datatypes.JSON(payloadJSON),
+			MetadataJSON:       datatypes.JSON(metadataJSON),
+			OccurredAt:         time.Now().UTC(),
+		}
+		if err := tx.Create(&event).Error; err != nil {
+			if isEventSequenceConflict(err) {
+				continue
+			}
+			return err
+		}
+		goto refs
 	}
-	if err := tx.Create(&event).Error; err != nil {
-		return err
-	}
+	return &FailError{StatusCode: 409, Message: "event sequence conflict"}
+
+refs:
 	for _, ref := range input.Refs {
 		if err := tx.Create(&database.EventRef{
 			EventID: event.ID,
@@ -1508,6 +1546,37 @@ func ensureExpectedRowVersion(current int, expected *int) error {
 		}
 	}
 	return nil
+}
+
+func staleRowVersionError(tx *gorm.DB, model any, id uint, expected int) error {
+	current := expected
+	row := struct {
+		RowVersion int
+	}{}
+	if err := tx.Model(model).Select("row_version").Where("id = ?", id).Take(&row).Error; err == nil {
+		current = row.RowVersion
+	}
+	return &FailError{
+		StatusCode: 409,
+		Message:    "row version conflict",
+		Data: map[string]any{
+			"expected_row_version": expected,
+			"current_row_version":  current,
+		},
+	}
+}
+
+func isEventSequenceConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "idx_events_aggregate_sequence") ||
+		strings.Contains(text, "events.aggregate_type") ||
+		strings.Contains(text, "duplicate key")
 }
 
 func (s *Service) ensureEnumValuesCompatible(ctx context.Context, definition database.FieldDefinition, allowed []string) error {

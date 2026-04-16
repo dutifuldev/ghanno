@@ -47,6 +47,43 @@ func TestImportManifestRejectsFieldTypeChange(t *testing.T) {
 	require.Equal(t, 409, fail.StatusCode)
 }
 
+func TestImportManifestRejectsEnumRemovalThatOrphansStoredValues(t *testing.T) {
+	ctx := context.Background()
+	service, _, server := newTestService(t)
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "user", ID: "tester"}
+	_, err := service.CreateFieldDefinition(ctx, actor, "acme", "widgets", FieldDefinitionInput{
+		Name:         "quality",
+		ObjectScope:  "pull_request",
+		FieldType:    "enum",
+		EnumValues:   []string{"low", "high"},
+		IsFilterable: true,
+	}, "")
+	require.NoError(t, err)
+
+	_, err = service.SetAnnotations(ctx, actor, "acme", "widgets", "pull_request", 22, nil, map[string]any{
+		"quality": "high",
+	}, "")
+	require.NoError(t, err)
+
+	_, err = service.ImportManifest(ctx, actor, "acme", "widgets", Manifest{
+		Version: "v1",
+		Fields: []FieldDefinitionInput{{
+			Name:         "quality",
+			ObjectScope:  "pull_request",
+			FieldType:    "enum",
+			EnumValues:   []string{"low"},
+			IsFilterable: true,
+		}},
+	}, "")
+	require.Error(t, err)
+
+	var fail *FailError
+	require.True(t, errors.As(err, &fail))
+	require.Equal(t, 409, fail.StatusCode)
+}
+
 func TestFilterTargetsUsesMatchingScopeAndSupportsMultiEnum(t *testing.T) {
 	ctx := context.Background()
 	service, _, server := newTestService(t)

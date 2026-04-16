@@ -281,9 +281,13 @@ func newFieldCommand(serverURL *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			manifestRaw, err := cli.ExtractJSendData(raw)
+			if err != nil {
+				return err
+			}
 			if mustBoolFlag(cmd, "yaml") {
 				var payload any
-				if err := json.Unmarshal(raw, &payload); err != nil {
+				if err := json.Unmarshal(manifestRaw, &payload); err != nil {
 					return err
 				}
 				out, err := yaml.Marshal(payload)
@@ -293,7 +297,7 @@ func newFieldCommand(serverURL *string) *cobra.Command {
 				fmt.Print(string(out))
 				return nil
 			}
-			fmt.Println(prettyJSON(raw))
+			fmt.Println(prettyJSON(manifestRaw))
 			return nil
 		},
 	}

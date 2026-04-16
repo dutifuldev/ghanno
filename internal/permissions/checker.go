@@ -3,6 +3,7 @@ package permissions
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -64,10 +65,18 @@ func (c *GitHubChecker) CanWrite(ctx context.Context, actor Actor, owner, repo s
 	}
 	c.mu.Unlock()
 
-	client := github.NewClient(oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})))
+	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token}))
+	client := github.NewClient(httpClient)
+	if baseURL := strings.TrimSpace(os.Getenv("GITHUB_API_URL")); baseURL != "" {
+		enterpriseClient, err := client.WithEnterpriseURLs(baseURL, baseURL)
+		if err != nil {
+			return false, err
+		}
+		client = enterpriseClient
+	}
 	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusForbidden {
+		if resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound) {
 			return false, nil
 		}
 		return false, err
