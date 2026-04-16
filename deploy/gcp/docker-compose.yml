@@ -1,0 +1,21 @@
+services:
+  prtags:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: ["serve"]
+    environment:
+      LISTEN_ADDR: ":8081"
+      DATABASE_URL: "postgres://${DB_IAM_USER_URLENCODED}@cloudsql-proxy:5432/${DB_NAME}?sslmode=disable"
+      GHREPLICA_BASE_URL: "${GHREPLICA_BASE_URL:-https://ghreplica.dutiful.dev}"
+      ALLOW_UNAUTH_WRITES: "${ALLOW_UNAUTH_WRITES:-false}"
+      ENABLE_BACKGROUND_WORKER: "${ENABLE_BACKGROUND_WORKER:-true}"
+      WORKER_POLL_INTERVAL: "${WORKER_POLL_INTERVAL:-2s}"
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL:-local-hash@1}"
+      PRTAGS_MIGRATIONS_DIR: "/app/migrations"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: gcp_default
+    external: true

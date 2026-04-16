@@ -860,6 +860,23 @@ If web login is added later, it should use the same OAuth App and the reserved c
 
 That future web flow should be additive. It should not replace device flow as the main interactive auth story for the CLI.
 
+### Initial Auth Validation Targets
+
+The first real auth validation should happen against `dutifuldev` repositories.
+
+The initial targets should be:
+
+- `dutifuldev/ghreplica`
+- `dutifuldev/prtags`
+
+These are the right first auth targets because:
+
+- they are controlled by the same operator who owns the OAuth app
+- the expected write permissions are easy to reason about
+- they avoid unrelated org-policy noise while the auth flow is still settling
+
+Only after the login flow and write-permission checks are stable there should `PRtags` expand auth testing to other repos and org contexts.
+
 ## Local Projection Policy
 
 Because `prtags` is a separate service, it may optionally keep a small projected cache of GitHub object fields for display and search convenience.

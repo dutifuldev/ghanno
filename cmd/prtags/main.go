@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/dutifuldev/prtags/internal/auth"
 	"github.com/dutifuldev/prtags/internal/cli"
 	"github.com/dutifuldev/prtags/internal/config"
 	"github.com/dutifuldev/prtags/internal/core"
@@ -38,6 +40,7 @@ func newRootCommand() *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&serverURL, "server", "http://127.0.0.1:8081", "PRtags API base URL")
 
+	root.AddCommand(newAuthCommand())
 	root.AddCommand(newServeCommand())
 	root.AddCommand(newWorkerCommand())
 	root.AddCommand(newFieldCommand(&serverURL))
@@ -47,6 +50,127 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newTargetsCommand(&serverURL))
 
 	return root
+}
+
+func newAuthCommand() *cobra.Command {
+	authCmd := &cobra.Command{
+		Use:   "auth",
+		Short: "Manage PRtags GitHub authentication",
+	}
+
+	var clientID string
+	var scope string
+	login := &cobra.Command{
+		Use:   "login",
+		Short: "Authenticate with GitHub using device flow",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := auth.DefaultConfig()
+			if cmd.Flags().Changed("client-id") {
+				cfg.ClientID = mustFlag(cmd, "client-id")
+			}
+			if cmd.Flags().Changed("scope") {
+				cfg.Scope = mustFlag(cmd, "scope")
+			}
+			if strings.TrimSpace(cfg.ClientID) == "" {
+				return fmt.Errorf("github oauth client id is required")
+			}
+
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+
+			device, err := cfg.StartDeviceFlow(ctx)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Open %s and enter code %s\n", device.VerificationURI, device.UserCode)
+			fmt.Fprintln(cmd.OutOrStdout(), "Waiting for GitHub authorization...")
+
+			token, err := cfg.PollAccessToken(
+				ctx,
+				device.DeviceCode,
+				time.Duration(device.Interval)*time.Second,
+				time.Duration(device.ExpiresIn)*time.Second,
+			)
+			if err != nil {
+				return err
+			}
+
+			viewer, err := cfg.GetViewer(ctx, token.AccessToken)
+			if err != nil {
+				return err
+			}
+
+			path, err := auth.SaveStoredToken(auth.StoredToken{
+				ClientID:     cfg.ClientID,
+				OAuthBaseURL: cfg.OAuthBaseURL,
+				APIBaseURL:   cfg.APIBaseURL,
+				AccessToken:  token.AccessToken,
+				TokenType:    token.TokenType,
+				Scope:        token.Scope,
+				UserLogin:    viewer.Login,
+				UserID:       viewer.ID,
+			})
+			if err != nil {
+				return err
+			}
+
+			scopes := strings.TrimSpace(token.Scope)
+			if scopes == "" {
+				scopes = cfg.Scope
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Logged in as %s\n", viewer.Login)
+			fmt.Fprintf(cmd.OutOrStdout(), "Scopes: %s\n", scopes)
+			fmt.Fprintf(cmd.OutOrStdout(), "Saved token to %s\n", path)
+			return nil
+		},
+	}
+	login.Flags().StringVar(&clientID, "client-id", auth.DefaultConfig().ClientID, "GitHub OAuth client ID")
+	login.Flags().StringVar(&scope, "scope", auth.DefaultScope, "space-delimited GitHub OAuth scopes")
+
+	status := &cobra.Command{
+		Use:   "status",
+		Short: "Show stored GitHub authentication status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			token, err := auth.LoadStoredToken()
+			if err != nil {
+				if os.IsNotExist(err) {
+					fmt.Fprintln(cmd.OutOrStdout(), "Not logged in.")
+					return nil
+				}
+				return err
+			}
+			path, err := auth.StoredTokenPath()
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Logged in as %s\n", token.UserLogin)
+			fmt.Fprintf(cmd.OutOrStdout(), "Scopes: %s\n", token.Scope)
+			fmt.Fprintf(cmd.OutOrStdout(), "Token file: %s\n", path)
+			return nil
+		},
+	}
+
+	logout := &cobra.Command{
+		Use:   "logout",
+		Short: "Remove the stored GitHub authentication token",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path, err := auth.StoredTokenPath()
+			if err != nil {
+				return err
+			}
+			if err := auth.DeleteStoredToken(); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Removed stored token at %s\n", path)
+			return nil
+		},
+	}
+
+	authCmd.AddCommand(login, status, logout)
+	return authCmd
 }
 
 func newServeCommand() *cobra.Command {

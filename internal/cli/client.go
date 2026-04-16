@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/dutifuldev/prtags/internal/auth"
 )
 
 type Client struct {
@@ -20,12 +22,22 @@ type Client struct {
 }
 
 func NewClient(baseURL string) *Client {
+	authToken := strings.TrimSpace(firstNonEmptyEnv("PRTAGS_GITHUB_TOKEN"))
+	if authToken == "" {
+		if stored, err := auth.LoadStoredToken(); err == nil {
+			authToken = strings.TrimSpace(stored.AccessToken)
+		}
+	}
+	if authToken == "" {
+		authToken = strings.TrimSpace(firstNonEmptyEnv("GITHUB_TOKEN", "GH_TOKEN"))
+	}
+
 	return &Client{
 		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		authToken: firstNonEmptyEnv("PRTAGS_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"),
+		authToken: authToken,
 		actorID:   firstNonEmptyEnv("PRTAGS_ACTOR", "X_ACTOR"),
 	}
 }
