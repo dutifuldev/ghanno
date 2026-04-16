@@ -6,13 +6,13 @@ status: proposed
 
 # Production Implementation Plan
 
-This document turns the current `ghanno` design into a concrete implementation plan for a production-ready system.
+This document turns the current `prtags` design into a concrete implementation plan for a production-ready system.
 
-The main goal is to build a customizable annotation layer on top of `ghreplica` without polluting the mirrored GitHub model. `ghanno` should store only references to GitHub-native objects plus human-added structure such as groups, links, field definitions, field values, search documents, and embeddings.
+The main goal is to build a customizable annotation layer on top of `ghreplica` without polluting the mirrored GitHub model. `prtags` should store only references to GitHub-native objects plus human-added structure such as groups, links, field definitions, field values, search documents, and embeddings.
 
 ## Goals
 
-`ghanno` should support all of the following as first-class concepts:
+`prtags` should support all of the following as first-class concepts:
 
 - groups of pull requests
 - groups of issues
@@ -22,11 +22,11 @@ The main goal is to build a customizable annotation layer on top of `ghreplica` 
 - efficient full-text search over selected metadata fields
 - efficient vector search over selected metadata fields
 
-The design should not hardcode field names like `intent`, `quality`, or `theme`. Repositories should define those fields at runtime, and `ghanno` should build the right indexes from field capabilities.
+The design should not hardcode field names like `intent`, `quality`, or `theme`. Repositories should define those fields at runtime, and `prtags` should build the right indexes from field capabilities.
 
 ## Non-Goals
 
-`ghanno` should not:
+`prtags` should not:
 
 - replace `ghreplica` as the source of truth for PR and issue content
 - duplicate full GitHub objects unnecessarily
@@ -49,7 +49,7 @@ The production shape should have three storage layers.
 
 ### 1. Canonical Curation Tables
 
-These tables are the real source of truth for `ghanno`:
+These tables are the real source of truth for `prtags`:
 
 - `groups`
 - `group_members`
@@ -258,7 +258,7 @@ Important constraints and indexes:
 
 ## Target Identity
 
-Because `ghanno` is a separate service, it should use stable explicit target identities rather than database joins into `ghreplica`.
+Because `prtags` is a separate service, it should use stable explicit target identities rather than database joins into `ghreplica`.
 
 The canonical identity model should be structured columns:
 
@@ -287,7 +287,7 @@ For `field_values`, `search_documents`, and `embeddings`, the implementation may
 
 ### Search Documents
 
-For each target, `ghanno` should derive one search document from:
+For each target, `prtags` should derive one search document from:
 
 - all field values whose definitions are marked `is_searchable`
 - optionally small projected GitHub fields later, such as PR title or issue title
@@ -313,7 +313,7 @@ Important indexes:
 
 ### Embeddings
 
-For each target, `ghanno` should derive one embedding input text from:
+For each target, `prtags` should derive one embedding input text from:
 
 - all field values whose definitions are marked `is_vectorized`
 
@@ -440,7 +440,7 @@ This is the right path for queries like:
 
 ### Hybrid Search
 
-Long term, `ghanno` should support filtered vector search and filtered FTS by combining:
+Long term, `prtags` should support filtered vector search and filtered FTS by combining:
 
 - metadata filters from `field_values`
 - semantic candidates from `embeddings`
@@ -494,19 +494,19 @@ The CLI should mirror the API cleanly.
 
 Suggested shape:
 
-- `ghanno field create`
-- `ghanno field list`
-- `ghanno field import`
-- `ghanno field export`
-- `ghanno group create`
-- `ghanno group add-pr`
-- `ghanno group add-issue`
-- `ghanno group link`
-- `ghanno pr set`
-- `ghanno issue set`
-- `ghanno group set`
-- `ghanno search text`
-- `ghanno search similar`
+- `prtags field create`
+- `prtags field list`
+- `prtags field import`
+- `prtags field export`
+- `prtags group create`
+- `prtags group add-pr`
+- `prtags group add-issue`
+- `prtags group link`
+- `prtags pr set`
+- `prtags issue set`
+- `prtags group set`
+- `prtags search text`
+- `prtags search similar`
 
 ## Auditability And History
 
@@ -586,27 +586,27 @@ The permissions model should be derived from GitHub repository permissions, not 
 
 The correct default rule is:
 
-- a user may modify `ghanno` data for a repo only if they currently have GitHub write access to that repo
+- a user may modify `prtags` data for a repo only if they currently have GitHub write access to that repo
 
-For `ghanno`, that means:
+For `prtags`, that means:
 
 - authenticate users with GitHub
 - treat the GitHub user identity as the actor identity
 - check the user’s permission on the target repository for mutating actions
 - allow writes for GitHub permission levels equivalent to `write`, `maintain`, or `admin`
 
-This should be repository-scoped. `ghanno` should not try to model organization membership rules on its own.
+This should be repository-scoped. `prtags` should not try to model organization membership rules on its own.
 
 ### Permission Source Of Truth
 
 GitHub should remain the source of truth for repository permissions.
 
-`ghanno` should not maintain a separate long-lived synchronization of repo membership. Instead, it should:
+`prtags` should not maintain a separate long-lived synchronization of repo membership. Instead, it should:
 
 - cache permission checks for a short TTL
 - re-check GitHub on writes when the cache is missing or expired
 
-That means if someone loses repo write access on GitHub, `ghanno` will stop allowing writes once the cached permission result expires.
+That means if someone loses repo write access on GitHub, `prtags` will stop allowing writes once the cached permission result expires.
 
 ### Permission Cache
 
@@ -637,7 +637,7 @@ The schema should carry `created_by` and `updated_by` fields consistently even b
 
 ## Local Projection Policy
 
-Because `ghanno` is a separate service, it may optionally keep a small projected cache of GitHub object fields for display and search convenience.
+Because `prtags` is a separate service, it may optionally keep a small projected cache of GitHub object fields for display and search convenience.
 
 That projection should be:
 

@@ -1,19 +1,19 @@
 # Annotation Fields
 
-This document explains how deployers should define custom annotation fields in `ghanno`.
+This document explains how deployers should define custom annotation fields in `prtags`.
 
 The short version is: field definitions are runtime data, not Go code.
 
 That means:
 
 - deployers should be able to define fields without recompiling the service
-- `ghanno` should store those definitions in normal database tables
+- `prtags` should store those definitions in normal database tables
 - YAML or JSON manifests can exist as a convenient import or bootstrap format
 - the database remains the source of truth after import
 
 ## Why Runtime Data Is The Right Model
 
-`ghanno` is supposed to be customizable per repo. One repo may want fields like `intent`, `quality`, and `risk`, while another may want `theme`, `decision`, and `owner`. If field definitions lived in Go code, every deployer would need to edit code and redeploy the service just to add or rename a field.
+`prtags` is supposed to be customizable per repo. One repo may want fields like `intent`, `quality`, and `risk`, while another may want `theme`, `decision`, and `owner`. If field definitions lived in Go code, every deployer would need to edit code and redeploy the service just to add or rename a field.
 
 That is the wrong tradeoff. The service should provide a stable set of supported field types and validation rules, while the actual repo-specific field definitions live as data.
 
@@ -51,7 +51,7 @@ The important switches are:
 - `is_searchable`
 - `is_vectorized`
 
-Those flags tell `ghanno` what derived indexes to build.
+Those flags tell `prtags` what derived indexes to build.
 
 The intended meaning is:
 
@@ -62,11 +62,11 @@ The intended meaning is:
 - `is_vectorized`
   - the field should contribute to derived embeddings for semantic search
 
-This is what keeps the system efficient. Instead of trying to search every custom field blindly, `ghanno` knows up front which fields matter for which query path.
+This is what keeps the system efficient. Instead of trying to search every custom field blindly, `prtags` knows up front which fields matter for which query path.
 
 ## Source Of Truth
 
-The source of truth for field definitions should be the `field_definitions` table in the `ghanno` database.
+The source of truth for field definitions should be the `field_definitions` table in the `prtags` database.
 
 The source of truth for actual values should be the `field_values` table.
 
@@ -82,7 +82,7 @@ After import, the database is authoritative.
 
 The clean operator flow is:
 
-1. define fields through the `ghanno` API or CLI
+1. define fields through the `prtags` API or CLI
 2. store those definitions in `field_definitions`
 3. let users write values against PRs, issues, or groups
 4. build derived text indexes and embeddings only for fields that were marked as searchable or vectorized
@@ -102,7 +102,7 @@ The correct default behavior is:
 
 In other words, manifest import should be additive and updating, not destructive.
 
-If a field disappears from a manifest, `ghanno` should not assume that means the field should be deleted. If a field name changes, `ghanno` should not assume that means a rename. Those lifecycle operations should be explicit API or CLI actions.
+If a field disappears from a manifest, `prtags` should not assume that means the field should be deleted. If a field name changes, `prtags` should not assume that means a rename. Those lifecycle operations should be explicit API or CLI actions.
 
 The clean production split is:
 
@@ -113,7 +113,7 @@ That keeps operator behavior predictable and avoids accidental data loss.
 
 ## Example Manifest
 
-This is the kind of YAML manifest that `ghanno` should be able to import:
+This is the kind of YAML manifest that `prtags` should be able to import:
 
 ```yaml
 repository:
@@ -158,7 +158,7 @@ fields:
     is_vectorized: true
 ```
 
-Again, the point of this manifest is convenience. `ghanno` should import it into normal field-definition rows instead of trying to read manifests on every request.
+Again, the point of this manifest is convenience. `prtags` should import it into normal field-definition rows instead of trying to read manifests on every request.
 
 ## Query Model
 
@@ -174,7 +174,7 @@ So if a deployer defines:
 - `intent` as searchable and vectorized
 - `quality` as filterable
 
-then `ghanno` can support:
+then `prtags` can support:
 
 - exact filters like “show high-quality PRs”
 - text search like “find mentions of flaky auth retries”

@@ -1,6 +1,6 @@
 # Data Model
 
-`ghanno` should treat `ghreplica` as the source of truth for GitHub objects and store only references plus curation data.
+`prtags` should treat `ghreplica` as the source of truth for GitHub objects and store only references plus curation data.
 
 The core idea is to support:
 
@@ -13,7 +13,7 @@ The core idea is to support:
 
 The model should follow a few simple rules.
 
-First, `ghanno` should not duplicate full PR or issue content. It should store references to mirrored GitHub objects and keep only the metadata that belongs to the curation layer.
+First, `prtags` should not duplicate full PR or issue content. It should store references to mirrored GitHub objects and keep only the metadata that belongs to the curation layer.
 
 Second, membership and relationship should be separate concepts. A group contains members. A group may also be related to another group. Those are not the same thing and should not be represented by the same table.
 
@@ -21,7 +21,7 @@ Third, the model should allow stricter group kinds now without blocking more fle
 
 ## Referenced Objects
 
-Because `ghanno` is a separate service, it cannot rely on database joins into `ghreplica`. So every curated object should be referenced in a stable, explicit way.
+Because `prtags` is a separate service, it cannot rely on database joins into `ghreplica`. So every curated object should be referenced in a stable, explicit way.
 
 The simplest shape is:
 
@@ -32,7 +32,7 @@ The simplest shape is:
   - `issue`
 - `object_number`
 
-This should be the canonical identity model. `ghanno` should store those values as separate columns because that is easier to validate, index, and query than a packed string key.
+This should be the canonical identity model. `prtags` should store those values as separate columns because that is easier to validate, index, and query than a packed string key.
 
 If a display-friendly identifier is useful, it should be derived from those columns. For example:
 
@@ -40,7 +40,7 @@ If a display-friendly identifier is useful, it should be derived from those colu
 
 That kind of packed key is fine for logs, URLs, CLI output, or cache keys, but it should not be the source of truth.
 
-Optionally, `ghanno` can also cache a small local projection for display and search purposes, such as title, state, author, and updated time, but that projection should stay clearly separate from the source-of-truth reference.
+Optionally, `prtags` can also cache a small local projection for display and search purposes, such as title, state, author, and updated time, but that projection should stay clearly separate from the source-of-truth reference.
 
 ## Core Tables
 
@@ -114,7 +114,7 @@ That is the clean way to model:
 
 This table defines repo-level custom metadata fields.
 
-These definitions should be runtime data stored in the database, not Go code. Go should only define the supported field types, validation rules, and indexing behavior. If deployers want to create or change fields, they should do that through `ghanno`'s API or CLI, or by importing a manifest that gets written into these tables.
+These definitions should be runtime data stored in the database, not Go code. Go should only define the supported field types, validation rules, and indexing behavior. If deployers want to create or change fields, they should do that through `prtags`'s API or CLI, or by importing a manifest that gets written into these tables.
 
 Suggested columns:
 
@@ -180,7 +180,7 @@ The point is to store typed values, not arbitrary blobs, so filtering and indexi
 
 This table should record the immutable audit history for the curation layer.
 
-The best model is not full event-sourcing. `ghanno` should keep normal current-state tables like `groups`, `group_members`, `group_links`, and `field_values` for fast reads, and also append one durable event row for each meaningful change.
+The best model is not full event-sourcing. `prtags` should keep normal current-state tables like `groups`, `group_members`, `group_links`, and `field_values` for fast reads, and also append one durable event row for each meaningful change.
 
 Suggested columns:
 
@@ -240,7 +240,7 @@ Examples:
 
 ## Why One Generic Group Model Is Better
 
-The elegant part of this design is that there is only one group concept. `ghanno` does not need a separate PR-group subsystem and a separate issue-group subsystem. Instead, the same group model works for both, and `kind` keeps the rules understandable.
+The elegant part of this design is that there is only one group concept. `prtags` does not need a separate PR-group subsystem and a separate issue-group subsystem. Instead, the same group model works for both, and `kind` keeps the rules understandable.
 
 That means:
 
@@ -273,7 +273,7 @@ That keeps the customizable layer flexible without making the data impossible to
 
 ## Recommended First Scope
 
-The thinnest useful version of `ghanno` should start with:
+The thinnest useful version of `prtags` should start with:
 
 - `groups`
 - `group_members`
