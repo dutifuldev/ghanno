@@ -106,6 +106,8 @@ That is the clean way to model:
 
 This table defines repo-level custom metadata fields.
 
+These definitions should be runtime data stored in the database, not Go code. Go should only define the supported field types, validation rules, and indexing behavior. If deployers want to create or change fields, they should do that through `ghanno`'s API or CLI, or by importing a manifest that gets written into these tables.
+
 Suggested columns:
 
 - `id`
@@ -133,6 +135,12 @@ Suggested columns:
 - `updated_at`
 
 This is what lets each repo customize the curation layer without turning everything into unqueryable free-form JSON.
+
+The important rule is:
+
+- the database is the source of truth for field definitions
+- a YAML or JSON manifest is only a convenient bootstrap or import format
+- Go code should not be the place where repo-specific annotation fields are declared
 
 ### `field_values`
 
@@ -184,6 +192,14 @@ The important queries are:
 - filter PRs, issues, or clusters by custom metadata fields
 
 If vector search is added later, it should be a derived layer over selected annotation fields such as intent, notes, or summaries. That should be stored separately from the core curation model so the base CRUD layer remains simple and predictable.
+
+The same principle applies to text and vector search over annotations:
+
+- field definitions declare whether a field is filterable, searchable, or vectorized
+- canonical field values stay in the normal metadata tables
+- derived text indexes and embeddings are built from the fields marked for those purposes
+
+That keeps the customizable layer flexible without making the data impossible to query efficiently.
 
 ## Recommended First Scope
 
