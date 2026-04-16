@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,8 +84,8 @@ type Manifest struct {
 }
 
 type AnnotationSetResult struct {
-	TargetKey   string
-	Annotations map[string]any
+	TargetKey   string         `json:"target_key"`
+	Annotations map[string]any `json:"annotations"`
 }
 
 type TargetFilterResult struct {
@@ -468,9 +469,21 @@ func (s *Service) ImportManifest(ctx context.Context, actor permissions.Actor, o
 				continue
 			}
 
+			if existing.FieldType != input.FieldType {
+				return &FailError{
+					StatusCode: 409,
+					Message:    "field_type cannot change for an existing field",
+					Data: map[string]any{
+						"field":              existing.Name,
+						"object_scope":       existing.ObjectScope,
+						"current_field_type": existing.FieldType,
+						"requested_type":     input.FieldType,
+					},
+				}
+			}
+
 			updates := map[string]any{
 				"display_name":     displayName(input),
-				"field_type":       input.FieldType,
 				"enum_values_json": datatypes.JSON(enumValues),
 				"is_required":      input.IsRequired,
 				"is_filterable":    input.IsFilterable,
@@ -1089,29 +1102,40 @@ func (s *Service) FilterTargets(ctx context.Context, owner, repo, targetType, fi
 	fieldName = normalizeFieldName(fieldName)
 
 	var definition database.FieldDefinition
-	if err := s.db.WithContext(ctx).
-		Where("github_repository_id = ? AND name = ? AND archived_at IS NULL", repository.GitHubRepositoryID, fieldName).
-		First(&definition).Error; err != nil {
-		return nil, translateDBError(err)
+	err = s.db.WithContext(ctx).
+		Where("github_repository_id = ? AND name = ? AND archived_at IS NULL AND is_filterable = ? AND object_scope = ?", repository.GitHubRepositoryID, fieldName, true, targetType).
+		First(&definition).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		if err := s.db.WithContext(ctx).
+			Where("github_repository_id = ? AND name = ? AND archived_at IS NULL AND is_filterable = ? AND object_scope = ?", repository.GitHubRepositoryID, fieldName, true, "all").
+			First(&definition).Error; err != nil {
+			return nil, translateDBError(err)
+		}
 	}
 
-	query := s.db.WithContext(ctx).Model(&database.FieldValue{}).
-		Where("field_definition_id = ? AND target_type = ?", definition.ID, targetType)
+	query := s.db.WithContext(ctx).Model(&database.FieldValue{}).Where("field_definition_id = ? AND target_type = ?", definition.ID, targetType)
+	filterValue := strings.TrimSpace(rawValue)
 
 	switch definition.FieldType {
 	case "boolean":
-		value := strings.EqualFold(strings.TrimSpace(rawValue), "true")
+		value := strings.EqualFold(filterValue, "true")
 		query = query.Where("bool_value = ?", value)
 	case "integer":
-		parsed, err := strconv.ParseInt(strings.TrimSpace(rawValue), 10, 64)
+		parsed, err := strconv.ParseInt(filterValue, 10, 64)
 		if err != nil {
 			return nil, &FailError{StatusCode: 400, Message: "invalid integer filter"}
 		}
 		query = query.Where("int_value = ?", parsed)
 	case "enum":
-		query = query.Where("enum_value = ?", strings.TrimSpace(rawValue))
+		query = query.Where("enum_value = ?", filterValue)
+	case "multi_enum":
+		// JSON containment differs across SQLite test runs and Postgres production,
+		// so keep the initial query broad and filter the decoded values below.
 	default:
-		query = query.Where("COALESCE(string_value, text_value, enum_value, '') = ?", strings.TrimSpace(rawValue))
+		query = query.Where("COALESCE(string_value, text_value, enum_value, '') = ?", filterValue)
 	}
 
 	var values []database.FieldValue
@@ -1121,6 +1145,16 @@ func (s *Service) FilterTargets(ctx context.Context, owner, repo, targetType, fi
 
 	results := make([]TargetFilterResult, 0, len(values))
 	for _, value := range values {
+		if definition.FieldType == "multi_enum" {
+			matches, err := multiEnumContains(value.MultiEnumJSON, filterValue)
+			if err != nil {
+				return nil, err
+			}
+			if !matches {
+				continue
+			}
+		}
+
 		annotations, err := s.getAnnotationsForTarget(ctx, value.TargetType, repository.GitHubRepositoryID, intValueOrZero(value.ObjectNumber), value.GroupID)
 		if err != nil {
 			return nil, err
@@ -1538,6 +1572,9 @@ func convertAnnotationValue(definition database.FieldDefinition, raw any) (conve
 	case "integer":
 		switch typed := raw.(type) {
 		case float64:
+			if math.Trunc(typed) != typed {
+				return convertedValue{}, false, &FailError{StatusCode: 400, Message: "expected integer value"}
+			}
 			value := int64(typed)
 			base.IntValue = &value
 			base.APIValue = value
@@ -1654,6 +1691,19 @@ func enumAllowed(raw datatypes.JSON, value string) bool {
 		}
 	}
 	return false
+}
+
+func multiEnumContains(raw datatypes.JSON, value string) (bool, error) {
+	var values []string
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return false, err
+	}
+	for _, candidate := range values {
+		if candidate == value {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func fieldValueToAPI(value database.FieldValue) any {

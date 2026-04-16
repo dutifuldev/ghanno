@@ -18,6 +18,7 @@ type Indexer struct {
 	db        *gorm.DB
 	embedding embedding.Provider
 	owner     string
+	leaseTTL  time.Duration
 }
 
 type TextSearchResult struct {
@@ -33,6 +34,7 @@ func NewIndexer(db *gorm.DB, provider embedding.Provider) *Indexer {
 		db:        db,
 		embedding: provider,
 		owner:     fmt.Sprintf("worker-%d", time.Now().UnixNano()),
+		leaseTTL:  5 * time.Minute,
 	}
 }
 
@@ -192,11 +194,29 @@ func (i *Indexer) Start(ctx context.Context, pollInterval time.Duration) {
 }
 
 func (i *Indexer) RunOnce(ctx context.Context) error {
+	if err := i.recoverStaleJobs(ctx); err != nil {
+		return err
+	}
 	job, ok, err := i.claimNextJob(ctx)
 	if err != nil || !ok {
 		return err
 	}
 	return i.processJob(ctx, job)
+}
+
+func (i *Indexer) recoverStaleJobs(ctx context.Context) error {
+	now := time.Now().UTC()
+	staleBefore := now.Add(-i.leaseTTL)
+	return i.db.WithContext(ctx).Model(&database.IndexJob{}).
+		Where("status = ? AND ((heartbeat_at IS NOT NULL AND heartbeat_at <= ?) OR (heartbeat_at IS NULL AND updated_at <= ?))", "processing", staleBefore, staleBefore).
+		Updates(map[string]any{
+			"status":          "pending",
+			"lease_owner":     "",
+			"heartbeat_at":    nil,
+			"next_attempt_at": now,
+			"last_error":      "job lease expired",
+			"updated_at":      now,
+		}).Error
 }
 
 func (i *Indexer) claimNextJob(ctx context.Context) (database.IndexJob, bool, error) {
@@ -397,6 +417,7 @@ func (i *Indexer) markJobSucceeded(ctx context.Context, jobID uint) error {
 		Where("id = ?", jobID).
 		Updates(map[string]any{
 			"status":       "succeeded",
+			"lease_owner":  "",
 			"heartbeat_at": nil,
 			"updated_at":   time.Now().UTC(),
 			"last_error":   "",
@@ -409,6 +430,7 @@ func (i *Indexer) markJobFailed(ctx context.Context, jobID uint, failure error) 
 		Where("id = ?", jobID).
 		Updates(map[string]any{
 			"status":          "pending",
+			"lease_owner":     "",
 			"next_attempt_at": retryAt,
 			"heartbeat_at":    nil,
 			"updated_at":      time.Now().UTC(),

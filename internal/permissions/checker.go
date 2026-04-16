@@ -2,7 +2,6 @@ package permissions
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -52,7 +51,7 @@ func NewGitHubChecker(ttl time.Duration) *GitHubChecker {
 func (c *GitHubChecker) CanWrite(ctx context.Context, actor Actor, owner, repo string) (bool, error) {
 	token := strings.TrimSpace(actor.Token)
 	if token == "" {
-		return false, errors.New("missing GitHub token")
+		return false, nil
 	}
 
 	cacheKey := actor.ID + "|" + owner + "/" + repo
