@@ -32,6 +32,14 @@ The simplest shape is:
   - `issue`
 - `object_number`
 
+This should be the canonical identity model. `ghanno` should store those values as separate columns because that is easier to validate, index, and query than a packed string key.
+
+If a display-friendly identifier is useful, it should be derived from those columns. For example:
+
+- `openclaw/openclaw#59883`
+
+That kind of packed key is fine for logs, URLs, CLI output, or cache keys, but it should not be the source of truth.
+
 Optionally, `ghanno` can also cache a small local projection for display and search purposes, such as title, state, author, and updated time, but that projection should stay clearly separate from the source-of-truth reference.
 
 ## Core Tables
@@ -67,10 +75,10 @@ Suggested columns:
 
 - `id`
 - `group_id`
-- `object_type`
-- `object_number`
 - `repository_owner`
 - `repository_name`
+- `object_type`
+- `object_number`
 - `added_by`
 - `added_at`
 

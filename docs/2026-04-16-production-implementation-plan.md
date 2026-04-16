@@ -260,20 +260,28 @@ Important constraints and indexes:
 
 Because `ghanno` is a separate service, it should use stable explicit target identities rather than database joins into `ghreplica`.
 
-The clean shape is:
+The canonical identity model should be structured columns:
 
 - `repository_owner`
 - `repository_name`
 - `target_type`
-- `target_key`
+- `object_number` for mirrored GitHub objects
+- local `group_id` for local group objects
 
-Suggested target keys:
+For pull requests and issues, this means the source-of-truth identity is:
 
-- PR: `pull_request:59883`
-- issue: `issue:1234`
-- group: `group:<local-id>`
+- `repository_owner`
+- `repository_name`
+- `target_type`
+- `object_number`
 
-This keeps the canonical model consistent across object types and makes derived indexing simpler.
+That is better than one packed string because it is easier to validate, index, and query. A human-friendly key like:
+
+- `openclaw/openclaw#59883`
+
+can still exist, but only as a derived display or cache key, not as the canonical identity.
+
+For `field_values`, `search_documents`, and `embeddings`, the implementation may still keep a derived `target_key` for convenience. If it does, that key should be generated from the canonical structured identity rather than replacing it.
 
 ## Derived Search Model
 
