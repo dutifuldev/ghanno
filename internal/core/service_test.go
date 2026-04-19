@@ -19,6 +19,19 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+type grantTestChecker struct {
+	allowed  bool
+	identity permissions.Identity
+}
+
+func (c grantTestChecker) CanWrite(context.Context, permissions.Actor, string, string) (bool, error) {
+	return c.allowed, nil
+}
+
+func (c grantTestChecker) ResolveIdentity(context.Context, permissions.Actor) (permissions.Identity, error) {
+	return c.identity, nil
+}
+
 func TestImportManifestRejectsFieldTypeChange(t *testing.T) {
 	ctx := context.Background()
 	service, _, server := newTestService(t)
@@ -252,8 +265,85 @@ func TestGetGroupFallsBackToCachedProjectionWhenBatchReadFails(t *testing.T) {
 	require.Equal(t, "target_projection", members[0].ObjectFreshness.Source)
 }
 
+func TestCreateGroupFallsBackToRepositoryAccessGrant(t *testing.T) {
+	ctx := context.Background()
+	service, db, server := newTestServiceWithChecker(t, grantTestChecker{
+		allowed: false,
+		identity: permissions.Identity{
+			GitHubUserID: 7937614,
+			GitHubLogin:  "dutifulbob",
+		},
+	})
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "github", ID: "token-digest", Token: "token"}
+
+	_, err := service.CreateGroup(ctx, actor, "acme", "widgets", GroupInput{
+		Kind:  "mixed",
+		Title: "Auth work",
+	}, "")
+	require.ErrorIs(t, err, ErrForbidden)
+
+	grant, err := service.UpsertRepositoryAccessGrant(ctx, "acme", "widgets", RepositoryAccessGrantInput{
+		GitHubUserID:          7937614,
+		GitHubLogin:           "dutifulbob",
+		Role:                  "writer",
+		GrantedByGitHubUserID: 7937614,
+		GrantedByGitHubLogin:  "dutifulbob",
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 101, grant.GitHubRepositoryID)
+
+	var stored database.RepositoryAccessGrant
+	require.NoError(t, db.WithContext(ctx).First(&stored, grant.ID).Error)
+	require.Equal(t, "writer", stored.Role)
+
+	group, err := service.CreateGroup(ctx, actor, "acme", "widgets", GroupInput{
+		Kind:  "mixed",
+		Title: "Auth work",
+	}, "")
+	require.NoError(t, err)
+	require.Equal(t, "Auth work", group.Title)
+}
+
+func TestDeleteRepositoryAccessGrantRemovesFallbackWrite(t *testing.T) {
+	ctx := context.Background()
+	service, _, server := newTestServiceWithChecker(t, grantTestChecker{
+		allowed: false,
+		identity: permissions.Identity{
+			GitHubUserID: 7937614,
+			GitHubLogin:  "dutifulbob",
+		},
+	})
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "github", ID: "token-digest", Token: "token"}
+
+	_, err := service.UpsertRepositoryAccessGrant(ctx, "acme", "widgets", RepositoryAccessGrantInput{
+		GitHubUserID:          7937614,
+		GitHubLogin:           "dutifulbob",
+		Role:                  "writer",
+		GrantedByGitHubUserID: 7937614,
+		GrantedByGitHubLogin:  "dutifulbob",
+	})
+	require.NoError(t, err)
+
+	err = service.DeleteRepositoryAccessGrant(ctx, "acme", "widgets", 7937614)
+	require.NoError(t, err)
+
+	_, err = service.CreateGroup(ctx, actor, "acme", "widgets", GroupInput{
+		Kind:  "mixed",
+		Title: "Auth work",
+	}, "")
+	require.ErrorIs(t, err, ErrForbidden)
+}
+
 func newTestService(t *testing.T) (*Service, *gorm.DB, *httptest.Server) {
 	return newTestServiceWithBatchBehavior(t, false)
+}
+
+func newTestServiceWithChecker(t *testing.T, checker permissions.Checker) (*Service, *gorm.DB, *httptest.Server) {
+	return newTestServiceWithBatchBehaviorAndChecker(t, false, checker)
 }
 
 func newTestServiceWithBatchFailure(t *testing.T) (*Service, *gorm.DB, *httptest.Server) {
@@ -261,6 +351,10 @@ func newTestServiceWithBatchFailure(t *testing.T) (*Service, *gorm.DB, *httptest
 }
 
 func newTestServiceWithBatchBehavior(t *testing.T, failBatch bool) (*Service, *gorm.DB, *httptest.Server) {
+	return newTestServiceWithBatchBehaviorAndChecker(t, failBatch, permissions.AllowAllChecker{})
+}
+
+func newTestServiceWithBatchBehaviorAndChecker(t *testing.T, failBatch bool, checker permissions.Checker) (*Service, *gorm.DB, *httptest.Server) {
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{
@@ -269,6 +363,7 @@ func newTestServiceWithBatchBehavior(t *testing.T, failBatch bool) (*Service, *g
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
 		&database.RepositoryProjection{},
+		&database.RepositoryAccessGrant{},
 		&database.TargetProjection{},
 		&database.Group{},
 		&database.GroupMember{},
@@ -284,7 +379,7 @@ func newTestServiceWithBatchBehavior(t *testing.T, failBatch bool) (*Service, *g
 	server := newTestGHReplicaServer(t, failBatch)
 
 	indexer := NewIndexer(db, embedding.NewLocalHashProvider("local-hash@1", database.EmbeddingDimensions))
-	service := NewService(db, ghreplica.NewClient(server.URL), permissions.AllowAllChecker{}, indexer)
+	service := NewService(db, ghreplica.NewClient(server.URL), checker, indexer)
 	return service, db, server
 }
 

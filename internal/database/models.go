@@ -23,6 +23,18 @@ type RepositoryProjection struct {
 	UpdatedAt          time.Time `json:"updated_at"`
 }
 
+type RepositoryAccessGrant struct {
+	ID                    uint      `gorm:"primaryKey" json:"id"`
+	GitHubRepositoryID    int64     `gorm:"column:github_repository_id;uniqueIndex:idx_repository_access_grants_repo_user,priority:1;index" json:"github_repository_id"`
+	GitHubUserID          int64     `gorm:"column:github_user_id;uniqueIndex:idx_repository_access_grants_repo_user,priority:2;index" json:"github_user_id"`
+	GitHubLogin           string    `gorm:"column:github_login" json:"github_login"`
+	Role                  string    `json:"role"`
+	GrantedByGitHubUserID int64     `gorm:"column:granted_by_github_user_id" json:"granted_by_github_user_id"`
+	GrantedByGitHubLogin  string    `gorm:"column:granted_by_github_login" json:"granted_by_github_login"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+}
+
 type TargetProjection struct {
 	ID                 uint      `gorm:"primaryKey" json:"id"`
 	GitHubRepositoryID int64     `gorm:"column:github_repository_id;index;uniqueIndex:idx_target_projections_repo_type_number,priority:1" json:"github_repository_id"`
