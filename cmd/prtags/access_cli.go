@@ -147,7 +147,7 @@ type grantSubject struct {
 
 func resolveGrantSubject(cmd *cobra.Command) (grantSubject, error) {
 	if mustBoolFlag(cmd, "self") {
-		token, err := auth.LoadStoredToken()
+		token, err := loadStoredGrantor()
 		if err != nil {
 			return grantSubject{}, err
 		}
@@ -169,12 +169,18 @@ func resolveGrantSubject(cmd *cobra.Command) (grantSubject, error) {
 	}
 
 	grantedByUserID := int64(mustIntFlag64(cmd, "granted-by-github-user-id"))
-	if grantedByUserID == 0 {
-		grantedByUserID = userID
-	}
 	grantedByLogin := strings.TrimSpace(mustFlag(cmd, "granted-by-github-login"))
-	if grantedByLogin == "" {
-		grantedByLogin = login
+	if grantedByUserID == 0 || grantedByLogin == "" {
+		token, err := loadStoredGrantor()
+		if err != nil {
+			return grantSubject{}, fmt.Errorf("grantor identity is required; pass --granted-by-github-user-id and --granted-by-github-login, or run prtags auth login: %w", err)
+		}
+		if grantedByUserID == 0 {
+			grantedByUserID = token.UserID
+		}
+		if grantedByLogin == "" {
+			grantedByLogin = strings.TrimSpace(token.UserLogin)
+		}
 	}
 
 	return grantSubject{
@@ -183,6 +189,17 @@ func resolveGrantSubject(cmd *cobra.Command) (grantSubject, error) {
 		grantedByUserID: grantedByUserID,
 		grantedByLogin:  grantedByLogin,
 	}, nil
+}
+
+func loadStoredGrantor() (auth.StoredToken, error) {
+	token, err := auth.LoadStoredToken()
+	if err != nil {
+		return auth.StoredToken{}, err
+	}
+	if token.UserID <= 0 || strings.TrimSpace(token.UserLogin) == "" {
+		return auth.StoredToken{}, fmt.Errorf("stored auth token is missing user identity")
+	}
+	return token, nil
 }
 
 func openOpsService() (*core.Service, func(), error) {
