@@ -269,6 +269,26 @@ If you want to sanity-check a local instance quickly, these endpoints are usuall
 
 ## Local Build And Install
 
+If you want the released CLI, the easiest install path is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dutifuldev/prtags/main/scripts/install-prtags.sh | bash
+```
+
+That script detects Linux versus macOS, picks the right release archive, and installs `prtags` into `/usr/local/bin` when possible or `~/.local/bin` otherwise.
+
+If you want to install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dutifuldev/prtags/main/scripts/install-prtags.sh | bash -s -- --version v0.1.0
+```
+
+If you want to install into a custom directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dutifuldev/prtags/main/scripts/install-prtags.sh | bash -s -- --bin-dir "$HOME/.local/bin"
+```
+
 If you only want the CLI locally, build `prtags` directly from this repo:
 
 ```bash

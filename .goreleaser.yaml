@@ -1,0 +1,63 @@
+version: 2
+
+project_name: prtags
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: prtags
+    main: ./cmd/prtags
+    binary: prtags
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: prtags
+    ids:
+      - prtags
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else if eq .Os "windows" }}Windows
+      {{- else }}Linux{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "arm64" }}arm64
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  filters:
+    exclude:
+      - '^Merge '
+      - '^docs:'
+      - '^test:'
+
+release:
+  github:
+    owner: dutifuldev
+    name: prtags
