@@ -18,8 +18,17 @@ type Actor struct {
 	Token string
 }
 
+type Identity struct {
+	GitHubUserID int64
+	GitHubLogin  string
+}
+
 type Checker interface {
 	CanWrite(ctx context.Context, actor Actor, owner, repo string) (bool, error)
+}
+
+type IdentityResolver interface {
+	ResolveIdentity(ctx context.Context, actor Actor) (Identity, error)
 }
 
 type AllowAllChecker struct{}
@@ -29,13 +38,19 @@ func (AllowAllChecker) CanWrite(context.Context, Actor, string, string) (bool, e
 }
 
 type GitHubChecker struct {
-	mu    sync.Mutex
-	cache map[string]cachedPermission
-	ttl   time.Duration
+	mu              sync.Mutex
+	permissionByKey map[string]cachedPermission
+	identityByKey   map[string]cachedIdentity
+	ttl             time.Duration
 }
 
 type cachedPermission struct {
 	allowed   bool
+	expiresAt time.Time
+}
+
+type cachedIdentity struct {
+	identity  Identity
 	expiresAt time.Time
 }
 
@@ -44,8 +59,9 @@ func NewGitHubChecker(ttl time.Duration) *GitHubChecker {
 		ttl = 2 * time.Minute
 	}
 	return &GitHubChecker{
-		cache: make(map[string]cachedPermission),
-		ttl:   ttl,
+		permissionByKey: make(map[string]cachedPermission),
+		identityByKey:   make(map[string]cachedIdentity),
+		ttl:             ttl,
 	}
 }
 
@@ -55,24 +71,23 @@ func (c *GitHubChecker) CanWrite(ctx context.Context, actor Actor, owner, repo s
 		return false, nil
 	}
 
-	cacheKey := actor.ID + "|" + owner + "/" + repo
+	cacheKey := actor.ID
+	if cacheKey == "" {
+		cacheKey = token
+	}
+	cacheKey += "|" + owner + "/" + repo
 	now := time.Now().UTC()
 
 	c.mu.Lock()
-	if cached, ok := c.cache[cacheKey]; ok && cached.expiresAt.After(now) {
+	if cached, ok := c.permissionByKey[cacheKey]; ok && cached.expiresAt.After(now) {
 		c.mu.Unlock()
 		return cached.allowed, nil
 	}
 	c.mu.Unlock()
 
-	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token}))
-	client := github.NewClient(httpClient)
-	if baseURL := strings.TrimSpace(os.Getenv("GITHUB_API_URL")); baseURL != "" {
-		enterpriseClient, err := client.WithEnterpriseURLs(baseURL, baseURL)
-		if err != nil {
-			return false, err
-		}
-		client = enterpriseClient
+	client, err := c.clientForActor(ctx, actor)
+	if err != nil {
+		return false, err
 	}
 	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
@@ -88,11 +103,70 @@ func (c *GitHubChecker) CanWrite(ctx context.Context, actor Actor, owner, repo s
 	}
 
 	c.mu.Lock()
-	c.cache[cacheKey] = cachedPermission{
+	c.permissionByKey[cacheKey] = cachedPermission{
 		allowed:   allowed,
 		expiresAt: now.Add(c.ttl),
 	}
 	c.mu.Unlock()
 
 	return allowed, nil
+}
+
+func (c *GitHubChecker) ResolveIdentity(ctx context.Context, actor Actor) (Identity, error) {
+	token := strings.TrimSpace(actor.Token)
+	if token == "" {
+		return Identity{}, nil
+	}
+
+	cacheKey := actor.ID
+	if cacheKey == "" {
+		cacheKey = token
+	}
+	now := time.Now().UTC()
+
+	c.mu.Lock()
+	if cached, ok := c.identityByKey[cacheKey]; ok && cached.expiresAt.After(now) {
+		c.mu.Unlock()
+		return cached.identity, nil
+	}
+	c.mu.Unlock()
+
+	client, err := c.clientForActor(ctx, actor)
+	if err != nil {
+		return Identity{}, err
+	}
+	viewer, resp, err := client.Users.Get(ctx, "")
+	if err != nil {
+		if resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound) {
+			return Identity{}, nil
+		}
+		return Identity{}, err
+	}
+
+	identity := Identity{
+		GitHubUserID: viewer.GetID(),
+		GitHubLogin:  strings.TrimSpace(viewer.GetLogin()),
+	}
+
+	c.mu.Lock()
+	c.identityByKey[cacheKey] = cachedIdentity{
+		identity:  identity,
+		expiresAt: now.Add(c.ttl),
+	}
+	c.mu.Unlock()
+
+	return identity, nil
+}
+
+func (c *GitHubChecker) clientForActor(ctx context.Context, actor Actor) (*github.Client, error) {
+	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: strings.TrimSpace(actor.Token)}))
+	client := github.NewClient(httpClient)
+	if baseURL := strings.TrimSpace(os.Getenv("GITHUB_API_URL")); baseURL != "" {
+		enterpriseClient, err := client.WithEnterpriseURLs(baseURL, baseURL)
+		if err != nil {
+			return nil, err
+		}
+		client = enterpriseClient
+	}
+	return client, nil
 }

@@ -167,7 +167,27 @@ func (s *Service) requireWrite(ctx context.Context, actor permissions.Actor, rep
 	if err != nil {
 		return err
 	}
-	if !allowed {
+	if allowed {
+		return nil
+	}
+
+	resolver, ok := s.permission.(permissions.IdentityResolver)
+	if !ok {
+		return ErrForbidden
+	}
+	identity, err := resolver.ResolveIdentity(ctx, actor)
+	if err != nil {
+		return err
+	}
+	if identity.GitHubUserID == 0 {
+		return ErrForbidden
+	}
+
+	granted, err := s.hasRepositoryWriteGrant(ctx, repo.GitHubRepositoryID, identity.GitHubUserID)
+	if err != nil {
+		return err
+	}
+	if !granted {
 		return ErrForbidden
 	}
 	return nil

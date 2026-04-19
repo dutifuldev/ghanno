@@ -48,6 +48,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newAnnotationCommand(&serverURL))
 	root.AddCommand(newSearchCommand(&serverURL))
 	root.AddCommand(newTargetsCommand(&serverURL))
+	root.AddCommand(newAccessCommand())
 
 	return root
 }
@@ -891,5 +892,10 @@ func mustBoolFlag(cmd *cobra.Command, name string) bool {
 
 func mustIntFlag(cmd *cobra.Command, name string) int {
 	value, _ := strconv.Atoi(cmd.Flag(name).Value.String())
+	return value
+}
+
+func mustIntFlag64(cmd *cobra.Command, name string) int64 {
+	value, _ := strconv.ParseInt(cmd.Flag(name).Value.String(), 10, 64)
 	return value
 }

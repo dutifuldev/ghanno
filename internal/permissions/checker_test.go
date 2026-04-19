@@ -35,3 +35,23 @@ func TestGitHubCheckerTreatsNotFoundAndUnauthorizedAsDenied(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
+
+func TestGitHubCheckerResolvesIdentity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/user") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":7937614,"login":"dutifulbob"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	t.Setenv("GITHUB_API_URL", server.URL+"/")
+
+	checker := NewGitHubChecker(0)
+	identity, err := checker.ResolveIdentity(context.Background(), Actor{Type: "github", ID: "tester", Token: "token"})
+	require.NoError(t, err)
+	require.EqualValues(t, 7937614, identity.GitHubUserID)
+	require.Equal(t, "dutifulbob", identity.GitHubLogin)
+}
