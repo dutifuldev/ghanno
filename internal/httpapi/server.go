@@ -169,7 +169,9 @@ func (s *Server) handleListGroups(c echo.Context) error {
 }
 
 func (s *Server) handleGetGroup(c echo.Context) error {
-	group, members, annotations, err := s.service.GetGroup(c.Request().Context(), c.Param("id"))
+	group, members, annotations, err := s.service.GetGroup(c.Request().Context(), c.Param("id"), core.GetGroupOptions{
+		IncludeMetadata: includeMetadata(c),
+	})
 	if err != nil {
 		return s.renderError(c, err)
 	}
@@ -372,6 +374,15 @@ func parseUintParam(value string) (uint, error) {
 
 func parseIntParam(value string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(value))
+}
+
+func includeMetadata(c echo.Context) bool {
+	for _, value := range strings.Split(c.QueryParam("include"), ",") {
+		if strings.EqualFold(strings.TrimSpace(value), "metadata") {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeJSONBody(c echo.Context, target any) error {

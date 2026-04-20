@@ -560,9 +560,18 @@ func newGroupCommand(serverURL *string) *cobra.Command {
 		Use:  "get <group-id>",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return doPrintJSON(context.Background(), *serverURL, "GET", "/v1/groups/"+args[0], nil)
+			path := "/v1/groups/" + args[0]
+			includeMetadata, err := cmd.Flags().GetBool("include-metadata")
+			if err != nil {
+				return err
+			}
+			if includeMetadata {
+				path += "?include=metadata"
+			}
+			return doPrintJSON(context.Background(), *serverURL, "GET", path, nil)
 		},
 	}
+	get.Flags().Bool("include-metadata", false, "include cached object metadata for group members")
 
 	update := &cobra.Command{
 		Use:  "update <group-id>",

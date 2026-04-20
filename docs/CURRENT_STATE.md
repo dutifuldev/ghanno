@@ -61,16 +61,22 @@ The numeric database ID stays internal.
 
 ## Group Reads
 
-`group get` enriches member references on the server side.
+`group get` returns refs only by default.
 
 The flow is:
 
 1. `PRtags` reads the group and its member refs from its own database.
-2. `PRtags` loads cached target projections for member PRs and issues.
-3. if any projection is missing or stale, `PRtags` queues a background refresh job.
-4. `PRtags` returns the member refs plus a small `object_summary`.
+2. if metadata is not requested, `PRtags` returns those refs directly.
+3. if metadata is requested, `PRtags` loads cached target projections for member PRs and issues.
+4. if any projection is missing or stale, `PRtags` queues a background refresh job.
+5. `PRtags` returns the member refs plus a small `object_summary`.
 
-Returned member enrichment currently includes:
+Metadata is opt-in:
+
+- CLI: `prtags group get <group-id> --include-metadata`
+- HTTP: `GET /v1/groups/:id?include=metadata`
+
+Returned member metadata currently includes:
 
 - `title`
 - `state`
@@ -78,7 +84,7 @@ Returned member enrichment currently includes:
 - `author_login`
 - `updated_at`
 
-`group get` also returns:
+When metadata is requested, `group get` also returns:
 
 - `object_summary_freshness`
 

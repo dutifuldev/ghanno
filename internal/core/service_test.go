@@ -208,6 +208,30 @@ func TestListGroupsReturnsMemberCounts(t *testing.T) {
 	require.Equal(t, 1, groups[0].MemberCounts["issue"])
 }
 
+func TestGetGroupOmitsMetadataByDefault(t *testing.T) {
+	ctx := context.Background()
+	service, _, server := newTestService(t)
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "user", ID: "tester"}
+	group, err := service.CreateGroup(ctx, actor, "acme", "widgets", GroupInput{
+		Kind:        "mixed",
+		Title:       "Auth work",
+		Description: "Track auth fixes",
+	}, "")
+	require.NoError(t, err)
+
+	_, err = service.AddGroupMember(ctx, actor, group.PublicID, "pull_request", 22, "")
+	require.NoError(t, err)
+	drainIndexJobs(t, ctx, service.db, service.indexer)
+
+	_, members, _, err := service.GetGroup(ctx, group.PublicID, GetGroupOptions{})
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	require.Nil(t, members[0].ObjectSummary)
+	require.Nil(t, members[0].ObjectFreshness)
+}
+
 func TestGetGroupUsesCurrentCachedProjectionWithoutBatchFetch(t *testing.T) {
 	ctx := context.Background()
 	var batchCalls atomic.Int32
@@ -229,8 +253,9 @@ func TestGetGroupUsesCurrentCachedProjectionWithoutBatchFetch(t *testing.T) {
 	require.NoError(t, err)
 	_, err = service.AddGroupMember(ctx, actor, group.PublicID, "issue", 11, "")
 	require.NoError(t, err)
+	drainIndexJobs(t, ctx, service.db, service.indexer)
 
-	_, members, _, err := service.GetGroup(ctx, group.PublicID)
+	_, members, _, err := service.GetGroup(ctx, group.PublicID, GetGroupOptions{IncludeMetadata: true})
 	require.NoError(t, err)
 	require.Len(t, members, 2)
 	require.Zero(t, batchCalls.Load())
@@ -269,7 +294,7 @@ func TestGetGroupEnqueuesRefreshWhenProjectionMissing(t *testing.T) {
 	}
 	require.NoError(t, db.WithContext(ctx).Create(&member).Error)
 
-	_, members, _, err := service.GetGroup(ctx, group.PublicID)
+	_, members, _, err := service.GetGroup(ctx, group.PublicID, GetGroupOptions{IncludeMetadata: true})
 	require.NoError(t, err)
 	require.Len(t, members, 1)
 	require.Nil(t, members[0].ObjectSummary)
@@ -290,7 +315,7 @@ func TestGetGroupEnqueuesRefreshWhenProjectionMissing(t *testing.T) {
 		First(&projection).Error)
 	require.Equal(t, "Retry ACP turns safely", projection.Title)
 
-	_, members, _, err = service.GetGroup(ctx, group.PublicID)
+	_, members, _, err = service.GetGroup(ctx, group.PublicID, GetGroupOptions{IncludeMetadata: true})
 	require.NoError(t, err)
 	require.Len(t, members, 1)
 	require.NotNil(t, members[0].ObjectSummary)
@@ -313,6 +338,7 @@ func TestGetGroupMarksStaleProjectionAndEnqueuesRefresh(t *testing.T) {
 
 	_, err = service.AddGroupMember(ctx, actor, group.PublicID, "pull_request", 22, "")
 	require.NoError(t, err)
+	drainIndexJobs(t, ctx, db, service.indexer)
 
 	staleAt := time.Now().UTC().Add(-2 * targetProjectionFreshnessTTL)
 	require.NoError(t, db.WithContext(ctx).
@@ -320,7 +346,7 @@ func TestGetGroupMarksStaleProjectionAndEnqueuesRefresh(t *testing.T) {
 		Where("github_repository_id = ? AND target_type = ? AND object_number = ?", group.GitHubRepositoryID, "pull_request", 22).
 		Update("fetched_at", staleAt).Error)
 
-	_, members, _, err := service.GetGroup(ctx, group.PublicID)
+	_, members, _, err := service.GetGroup(ctx, group.PublicID, GetGroupOptions{IncludeMetadata: true})
 	require.NoError(t, err)
 	require.Len(t, members, 1)
 	require.NotNil(t, members[0].ObjectSummary)
@@ -328,8 +354,51 @@ func TestGetGroupMarksStaleProjectionAndEnqueuesRefresh(t *testing.T) {
 	require.Equal(t, "target_projection", members[0].ObjectFreshness.Source)
 
 	var jobs []database.IndexJob
-	require.NoError(t, db.WithContext(ctx).Where("kind = ?", indexJobKindTargetProjectionRefresh).Find(&jobs).Error)
+	require.NoError(t, db.WithContext(ctx).
+		Where("kind = ? AND status = ?", indexJobKindTargetProjectionRefresh, "pending").
+		Find(&jobs).Error)
 	require.Len(t, jobs, 1)
+}
+
+func TestAddGroupMemberDoesNotBlockOnProjectionFetch(t *testing.T) {
+	ctx := context.Background()
+	service, db, server := newTestServiceWithBatchOptions(t, batchBehavior{
+		objectDelay: time.Second,
+	})
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "user", ID: "tester"}
+	group, err := service.CreateGroup(ctx, actor, "acme", "widgets", GroupInput{
+		Kind:  "pull_request",
+		Title: "Auth work",
+	}, "")
+	require.NoError(t, err)
+
+	start := time.Now()
+	member, err := service.AddGroupMember(ctx, actor, group.PublicID, "pull_request", 22, "")
+	elapsed := time.Since(start)
+	require.NoError(t, err)
+	require.Equal(t, 22, member.ObjectNumber)
+	require.Less(t, elapsed, 250*time.Millisecond)
+
+	var projectionCount int64
+	require.NoError(t, db.WithContext(ctx).
+		Model(&database.TargetProjection{}).
+		Where("github_repository_id = ? AND target_type = ? AND object_number = ?", group.GitHubRepositoryID, "pull_request", 22).
+		Count(&projectionCount).Error)
+	require.Zero(t, projectionCount)
+
+	var refreshJobs []database.IndexJob
+	require.NoError(t, db.WithContext(ctx).Where("kind = ?", indexJobKindTargetProjectionRefresh).Find(&refreshJobs).Error)
+	require.Len(t, refreshJobs, 1)
+
+	drainIndexJobs(t, ctx, db, service.indexer)
+
+	require.NoError(t, db.WithContext(ctx).
+		Model(&database.TargetProjection{}).
+		Where("github_repository_id = ? AND target_type = ? AND object_number = ?", group.GitHubRepositoryID, "pull_request", 22).
+		Count(&projectionCount).Error)
+	require.EqualValues(t, 1, projectionCount)
 }
 
 func TestCreateGroupFallsBackToRepositoryAccessGrant(t *testing.T) {
@@ -422,9 +491,10 @@ func newTestServiceWithBatchOptions(t *testing.T, behavior batchBehavior) (*Serv
 }
 
 type batchBehavior struct {
-	fail  bool
-	delay time.Duration
-	calls *atomic.Int32
+	fail        bool
+	delay       time.Duration
+	objectDelay time.Duration
+	calls       *atomic.Int32
 }
 
 func newTestServiceWithBatchBehaviorAndChecker(t *testing.T, behavior batchBehavior, checker permissions.Checker) (*Service, *gorm.DB, *httptest.Server) {
@@ -474,6 +544,9 @@ func newTestGHReplicaServer(t *testing.T, behavior batchBehavior) *httptest.Serv
 				"owner": {"login": "acme"}
 			}`))
 		case "/v1/github/repos/acme/widgets/pulls/22":
+			if behavior.objectDelay > 0 {
+				time.Sleep(behavior.objectDelay)
+			}
 			_, _ = w.Write([]byte(`{
 				"id": 2022,
 				"number": 22,
@@ -484,6 +557,9 @@ func newTestGHReplicaServer(t *testing.T, behavior batchBehavior) *httptest.Serv
 				"user": {"login": "bob"}
 			}`))
 		case "/v1/github/repos/acme/widgets/issues/11":
+			if behavior.objectDelay > 0 {
+				time.Sleep(behavior.objectDelay)
+			}
 			_, _ = w.Write([]byte(`{
 				"id": 1111,
 				"number": 11,
