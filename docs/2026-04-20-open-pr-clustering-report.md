@@ -21,18 +21,114 @@ sample_size: 100
 
 ## Created Groups
 
-- `eager-piglet-i6pr` `duplicate` Open PR duplicate: Mission Control v3.0 UI updates: `#68861`, `#68756`. Exact title match; `#68861` explicitly says it replaces `#68756` after a clean rebuild.
-- `legible-ferret-wc2p` `duplicate` Open PR duplicate: auto-reply queue orphaning: `#68914`, `#68908`, `#68839`. `#68914` and `#68908` have the same title and fix the same `FOLLOWUP_QUEUES` identity-guard bug; `#68839` addresses the same `#68838` late-drain queue deletion failure mode.
-- `living-burro-rkj0` `duplicate` Open PR duplicate: browser tool via `/tools/invoke`: `#68911`, `#68879`. Same browser-tool `/tools/invoke` bug and near-identical root-cause description.
-- `evolving-spaniel-9ojm` `duplicate` Open PR duplicate: gateway `nodeWakeById` no-registration cleanup: `#68912`, `#68848`. Same stale `nodeWakeById` leak on the no-registration early return; both reference `#68847`.
-- `actual-grouse-o3j8` `duplicate` Open PR duplicate: onboard Homebrew prompt on unsupported platforms: `#68910`, `#68894`. Same `#68893` bug; one patch is FreeBSD-specific and the other broadens it to all unsupported platforms.
-- `modern-rhino-knzo` `duplicate` Open PR duplicate: gateway `costUsageCache` growth: `#68913`, `#68842`. Same `#68841` cache-growth problem with alternative eviction strategies.
-- `crisp-shark-7utq` `duplicate` Open PR duplicate: allowlist heredoc approval gate: `#68854`, `#68824`. Same `#68661` heredoc-approval regression; one is narrower, one removes the blanket gate.
-- `able-shepherd-ttf8` `duplicate` Open PR duplicate: streaming usage for non-default openai-completions: `#68749`, `#68742`. Same `#68707` usage-tracking regression for local/custom OpenAI-compatible providers.
-- `patient-piglet-45hj` `duplicate` Open PR duplicate: Windows `claude` cmd shim spawning: `#68849`, `#68819`. Same `#68788` Windows `claude-cli` spawn failure; `#68849` is the narrower allowlist subset of `#68819`.
-- `legal-wolf-dmw6` `duplicate` Open PR duplicate: Gemma 4 reasoning detection: `#68762`, `#68740`. Same `#68728` Gemma 4 reasoning-model detection gap.
-- `exciting-crappie-yw0w` `issue-family` Open PR cluster: memory dreaming noise from `#68449`: `#68876`, `#68870`. `#68876` explicitly says it is a companion to `#68870`; both address different halves of `#68449`.
-- `discrete-airedale-t4tc` `issue-family` Open PR cluster: preserve TTS transcript text: `#68877`, `#68869`. `#68877` explicitly says it is independent of and complementary to `#68869`; both preserve spoken text at different layers.
+### `eager-piglet-i6pr` duplicate
+
+Open PR duplicate: Mission Control v3.0 UI updates
+
+- [#68861](https://github.com/openclaw/openclaw/pull/68861)
+- [#68756](https://github.com/openclaw/openclaw/pull/68756)
+
+Exact title match; `#68861` explicitly says it replaces `#68756` after a clean rebuild.
+
+### `legible-ferret-wc2p` duplicate
+
+Open PR duplicate: auto-reply queue orphaning
+
+- [#68914](https://github.com/openclaw/openclaw/pull/68914)
+- [#68908](https://github.com/openclaw/openclaw/pull/68908)
+- [#68839](https://github.com/openclaw/openclaw/pull/68839)
+
+`#68914` and `#68908` have the same title and fix the same `FOLLOWUP_QUEUES` identity-guard bug; `#68839` addresses the same `#68838` late-drain queue deletion failure mode.
+
+### `living-burro-rkj0` duplicate
+
+Open PR duplicate: browser tool via `/tools/invoke`
+
+- [#68911](https://github.com/openclaw/openclaw/pull/68911)
+- [#68879](https://github.com/openclaw/openclaw/pull/68879)
+
+Same browser-tool `/tools/invoke` bug and near-identical root-cause description.
+
+### `evolving-spaniel-9ojm` duplicate
+
+Open PR duplicate: gateway `nodeWakeById` no-registration cleanup
+
+- [#68912](https://github.com/openclaw/openclaw/pull/68912)
+- [#68848](https://github.com/openclaw/openclaw/pull/68848)
+
+Same stale `nodeWakeById` leak on the no-registration early return; both reference `#68847`.
+
+### `actual-grouse-o3j8` duplicate
+
+Open PR duplicate: onboard Homebrew prompt on unsupported platforms
+
+- [#68910](https://github.com/openclaw/openclaw/pull/68910)
+- [#68894](https://github.com/openclaw/openclaw/pull/68894)
+
+Same `#68893` bug; one patch is FreeBSD-specific and the other broadens it to all unsupported platforms.
+
+### `modern-rhino-knzo` duplicate
+
+Open PR duplicate: gateway `costUsageCache` growth
+
+- [#68913](https://github.com/openclaw/openclaw/pull/68913)
+- [#68842](https://github.com/openclaw/openclaw/pull/68842)
+
+Same `#68841` cache-growth problem with alternative eviction strategies.
+
+### `crisp-shark-7utq` duplicate
+
+Open PR duplicate: allowlist heredoc approval gate
+
+- [#68854](https://github.com/openclaw/openclaw/pull/68854)
+- [#68824](https://github.com/openclaw/openclaw/pull/68824)
+
+Same `#68661` heredoc-approval regression; one is narrower, one removes the blanket gate.
+
+### `able-shepherd-ttf8` duplicate
+
+Open PR duplicate: streaming usage for non-default openai-completions
+
+- [#68749](https://github.com/openclaw/openclaw/pull/68749)
+- [#68742](https://github.com/openclaw/openclaw/pull/68742)
+
+Same `#68707` usage-tracking regression for local/custom OpenAI-compatible providers.
+
+### `patient-piglet-45hj` duplicate
+
+Open PR duplicate: Windows `claude` cmd shim spawning
+
+- [#68849](https://github.com/openclaw/openclaw/pull/68849)
+- [#68819](https://github.com/openclaw/openclaw/pull/68819)
+
+Same `#68788` Windows `claude-cli` spawn failure; `#68849` is the narrower allowlist subset of `#68819`.
+
+### `legal-wolf-dmw6` duplicate
+
+Open PR duplicate: Gemma 4 reasoning detection
+
+- [#68762](https://github.com/openclaw/openclaw/pull/68762)
+- [#68740](https://github.com/openclaw/openclaw/pull/68740)
+
+Same `#68728` Gemma 4 reasoning-model detection gap.
+
+### `exciting-crappie-yw0w` issue-family
+
+Open PR cluster: memory dreaming noise from `#68449`
+
+- [#68876](https://github.com/openclaw/openclaw/pull/68876)
+- [#68870](https://github.com/openclaw/openclaw/pull/68870)
+
+`#68876` explicitly says it is a companion to `#68870`; both address different halves of `#68449`.
+
+### `discrete-airedale-t4tc` issue-family
+
+Open PR cluster: preserve TTS transcript text
+
+- [#68877](https://github.com/openclaw/openclaw/pull/68877)
+- [#68869](https://github.com/openclaw/openclaw/pull/68869)
+
+`#68877` explicitly says it is independent of and complementary to `#68869`; both preserve spoken text at different layers.
 
 ## Full 100-PR Disposition
 
