@@ -1,2 +1,6 @@
 node_modules/
 .DS_Store
+.env
+deploy/gcp/prtags.env
+deploy/gcp/github-oauth.env
+deploy/gcp/github-app.env
