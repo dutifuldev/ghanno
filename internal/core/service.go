@@ -135,6 +135,10 @@ type GroupMemberView struct {
 	ObjectFreshness    *GroupMemberObjectFreshness `json:"object_summary_freshness,omitempty"`
 }
 
+type GetGroupOptions struct {
+	IncludeMetadata bool
+}
+
 func NewService(db *gorm.DB, gh *ghreplica.Client, checker permissions.Checker, indexer *Indexer) *Service {
 	return &Service{
 		db:         db,
@@ -803,7 +807,7 @@ func (s *Service) ListGroups(ctx context.Context, owner, repo string) ([]GroupLi
 	return views, nil
 }
 
-func (s *Service) GetGroup(ctx context.Context, groupPublicID string) (database.Group, []GroupMemberView, map[string]any, error) {
+func (s *Service) GetGroup(ctx context.Context, groupPublicID string, options GetGroupOptions) (database.Group, []GroupMemberView, map[string]any, error) {
 	group, err := s.lookupGroupByPublicID(ctx, groupPublicID)
 	if err != nil {
 		return database.Group{}, nil, nil, translateDBError(err)
@@ -814,9 +818,16 @@ func (s *Service) GetGroup(ctx context.Context, groupPublicID string) (database.
 		return database.Group{}, nil, nil, err
 	}
 
-	memberViews, err := s.enrichGroupMembers(ctx, group, members)
-	if err != nil {
-		return database.Group{}, nil, nil, err
+	memberViews := make([]GroupMemberView, 0, len(members))
+	if options.IncludeMetadata {
+		memberViews, err = s.enrichGroupMembers(ctx, group, members)
+		if err != nil {
+			return database.Group{}, nil, nil, err
+		}
+	} else {
+		for _, member := range members {
+			memberViews = append(memberViews, groupMemberViewFromModel(member, groupMemberResolution{}))
+		}
 	}
 
 	annotations, err := s.getAnnotationsForTarget(ctx, "group", group.GitHubRepositoryID, 0, &group.ID)
@@ -839,11 +850,6 @@ func (s *Service) AddGroupMember(ctx context.Context, actor permissions.Actor, g
 	if err := validateMemberType(group.Kind, objectType); err != nil {
 		return database.GroupMember{}, err
 	}
-	projection, err := s.ensureTargetProjection(ctx, group.RepositoryOwner, group.RepositoryName, group.GitHubRepositoryID, objectType, objectNumber)
-	if err != nil {
-		return database.GroupMember{}, err
-	}
-
 	member := database.GroupMember{
 		GroupID:            group.ID,
 		GitHubRepositoryID: group.GitHubRepositoryID,
@@ -885,15 +891,27 @@ func (s *Service) AddGroupMember(ctx context.Context, actor permissions.Actor, g
 		}, time.Now().UTC()); err != nil {
 			return err
 		}
-		return s.enqueueRebuildsTx(tx, repository, targetRef{
+		if err := s.enqueueTargetProjectionRefreshJobsTx(tx, group, []targetRef{{
 			RepositoryID: group.GitHubRepositoryID,
 			Owner:        group.RepositoryOwner,
 			Name:         group.RepositoryName,
 			TargetType:   objectType,
 			TargetKey:    member.TargetKey,
 			ObjectNumber: objectNumber,
-			Projection:   &projection,
-		}, projection.SourceUpdatedAt)
+		}}); err != nil {
+			return err
+		}
+		if err := s.enqueueRebuildsTx(tx, repository, targetRef{
+			RepositoryID: group.GitHubRepositoryID,
+			Owner:        group.RepositoryOwner,
+			Name:         group.RepositoryName,
+			TargetType:   objectType,
+			TargetKey:    member.TargetKey,
+			ObjectNumber: objectNumber,
+		}, time.Now().UTC()); err != nil {
+			return err
+		}
+		return nil
 	})
 	return member, translateDBError(err)
 }
@@ -1430,6 +1448,14 @@ func (s *Service) loadCachedGroupMemberProjections(ctx context.Context, reposito
 }
 
 func (s *Service) enqueueTargetProjectionRefreshJobs(ctx context.Context, group database.Group, targets []targetRef) error {
+	return s.enqueueTargetProjectionRefreshJobsDB(s.db.WithContext(ctx), group, targets)
+}
+
+func (s *Service) enqueueTargetProjectionRefreshJobsTx(tx *gorm.DB, group database.Group, targets []targetRef) error {
+	return s.enqueueTargetProjectionRefreshJobsDB(tx, group, targets)
+}
+
+func (s *Service) enqueueTargetProjectionRefreshJobsDB(db *gorm.DB, group database.Group, targets []targetRef) error {
 	now := time.Now().UTC()
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
@@ -1446,7 +1472,7 @@ func (s *Service) enqueueTargetProjectionRefreshJobs(ctx context.Context, group 
 		seen[dedupeKey] = struct{}{}
 
 		var existing database.IndexJob
-		err := s.db.WithContext(ctx).
+		err := db.
 			Where("kind = ? AND github_repository_id = ? AND target_type = ? AND target_key = ? AND status IN ?", indexJobKindTargetProjectionRefresh, group.GitHubRepositoryID, target.TargetType, target.TargetKey, []string{"pending", "processing"}).
 			First(&existing).Error
 		if err == nil {
@@ -1469,7 +1495,7 @@ func (s *Service) enqueueTargetProjectionRefreshJobs(ctx context.Context, group 
 		if target.Projection != nil {
 			job.SourceUpdatedAt = timePtr(target.Projection.SourceUpdatedAt)
 		}
-		if err := s.db.WithContext(ctx).Create(&job).Error; err != nil {
+		if err := db.Create(&job).Error; err != nil {
 			return err
 		}
 	}
@@ -1596,8 +1622,15 @@ func (s *Service) appendEventTx(tx *gorm.DB, input eventInput) error {
 			MetadataJSON:       datatypes.JSON(metadataJSON),
 			OccurredAt:         time.Now().UTC(),
 		}
+		savepoint := fmt.Sprintf("event_sequence_retry_%d", attempts)
+		if err := tx.SavePoint(savepoint).Error; err != nil {
+			return err
+		}
 		if err := tx.Create(&event).Error; err != nil {
 			if isEventSequenceConflict(err) {
+				if rollbackErr := tx.RollbackTo(savepoint).Error; rollbackErr != nil {
+					return rollbackErr
+				}
 				continue
 			}
 			return err

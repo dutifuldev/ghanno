@@ -95,12 +95,16 @@ func TestAPIEndToEndFlow(t *testing.T) {
 	group := postJSON(t, server.Echo(), http.MethodGet, fmt.Sprintf("/v1/groups/%s", groupID), nil, http.StatusOK)
 	require.Contains(t, group, `"Auth reliability"`)
 	require.Contains(t, group, fmt.Sprintf(`"id":"%s"`, groupID))
-	require.Contains(t, group, `"object_summary"`)
-	require.Contains(t, group, `"object_summary_freshness"`)
-	require.Contains(t, group, `"state":"current"`)
-	require.Contains(t, group, `"source":"target_projection"`)
-	require.Contains(t, group, `"Retry ACP turns safely"`)
-	require.Contains(t, group, `"https://github.com/acme/widgets/pull/22"`)
+	require.NotContains(t, group, `"object_summary"`)
+	require.NotContains(t, group, `"object_summary_freshness"`)
+
+	groupWithMetadata := postJSON(t, server.Echo(), http.MethodGet, fmt.Sprintf("/v1/groups/%s?include=metadata", groupID), nil, http.StatusOK)
+	require.Contains(t, groupWithMetadata, `"object_summary"`)
+	require.Contains(t, groupWithMetadata, `"object_summary_freshness"`)
+	require.Contains(t, groupWithMetadata, `"state":"current"`)
+	require.Contains(t, groupWithMetadata, `"source":"target_projection"`)
+	require.Contains(t, groupWithMetadata, `"Retry ACP turns safely"`)
+	require.Contains(t, groupWithMetadata, `"https://github.com/acme/widgets/pull/22"`)
 
 	var events int64
 	require.NoError(t, db.WithContext(ctx).Model(&database.Event{}).Count(&events).Error)
