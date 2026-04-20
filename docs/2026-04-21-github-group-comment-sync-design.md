@@ -109,36 +109,40 @@ This table is the main mapping between local group membership and the managed Gi
 
 ## Job Model
 
-Comment sync should run as a background job, just like the existing projection and search rebuild work.
+Comment sync should run as a River job.
 
 Suggested job kind:
 
 - `github_group_comment_sync`
 
-Suggested job payload fields in the existing `index_jobs` table:
+Suggested job args:
 
 - `github_repository_id`
 - `repository_owner`
 - `repository_name`
+- `group_id`
+- `group_public_id`
 - `target_type`
 - `target_key`
-- enough metadata to resolve the affected group
+- `object_number`
+- optional later: `desired_revision`
 
-If the current generic job shape becomes awkward for this, it is acceptable to add a dedicated table later.
+This is a better fit than extending the current custom `index_jobs` worker further.
 
-For the first implementation, reusing the existing worker and job pattern is the simplest path.
+The existing worker is fine for local derived indexing, but GitHub comment sync is a different class of work:
+
+- it talks to an external API
+- it needs stronger retry behavior
+- it needs clearer failure tracking
+- it will likely need repair and replay later
+
+Using River avoids growing a second homegrown queue system inside `prtags`.
 
 ## Retry And Failure Tracking
 
 Comment sync should be explicit about success and failure.
 
-Each job should keep:
-
-- `status`
-- `attempt_count`
-- `next_attempt_at`
-- `last_error`
-- `heartbeat_at`
+Each River job should keep the normal job lifecycle state, attempts, scheduling, and error history.
 
 That allows:
 
@@ -173,7 +177,7 @@ The simplest write surface is issue comments.
 
 That works for both issues and pull requests because pull requests use the issue-comment surface for normal timeline comments.
 
-So the worker should use:
+So the River worker should use:
 
 - create issue comment
 - update issue comment
@@ -187,7 +191,7 @@ It does not need pull-request review comments.
 
 That is enough for a user-triggered comment API call, but it is the wrong fit for background sync.
 
-The worker should use a separate GitHub App dedicated to comment sync.
+The River worker should use a separate GitHub App dedicated to comment sync.
 
 Reasons:
 
@@ -207,13 +211,13 @@ The current code already has most of the right local building blocks:
 
 - group writes append durable events
 - group membership writes already enqueue background work
-- `prtags` already has a worker loop and lease-based job processing
+- `prtags` already has a clear background-work boundary
 
 That means the clean implementation path is:
 
 1. add comment-sync job enqueueing near the existing group write paths
 2. add GitHub comment sync state storage
-3. extend the worker with a `github_group_comment_sync` handler
+3. add a River worker with a `github_group_comment_sync` handler
 4. render and reconcile one managed comment per `(group, target)`
 
 ## First Implementation Scope
