@@ -146,6 +146,7 @@ Suggested job args:
 - reconcile:
   - `sync_target_id`
   - `desired_revision`
+  - scheduled with a short debounce delay
 - repair:
   - optional `github_repository_id`
   - optional `group_id`
@@ -173,10 +174,19 @@ Instead:
 
 - the projector updates the sync row to the newest `desired_revision`
 - reconcile jobs are keyed by `sync_target_id`
+- reconcile jobs are scheduled with a short debounce window
 - the reconcile worker always loads the latest row state before rendering
 - stale jobs whose `desired_revision` is older than the current row are skipped
 
 That gives one final GitHub write for the newest wanted state instead of a burst of obsolete writes.
+
+The debounce window should be short but intentional.
+
+Recommended first value:
+
+- 5 to 15 seconds before reconcile work becomes runnable
+
+That is long enough to collapse fast group edits into one GitHub write without making the feature feel stale.
 
 ## Retry And Failure Tracking
 
@@ -201,6 +211,28 @@ The reconcile worker should:
 2. skip the job if its `desired_revision` is older than the row's current `desired_revision`
 3. skip the job if its `desired_revision` is already less than or equal to `applied_revision`
 4. otherwise apply the newest desired state and advance `applied_revision`
+
+## Rate Limiting And Fairness
+
+GitHub writes should drain slowly and predictably even if local group state changes quickly.
+
+`prtags` should not let River push comment updates to GitHub as fast as workers can dequeue them.
+
+Recommended rules:
+
+- cap reconcile concurrency per GitHub installation or per repository
+- back off aggressively on GitHub secondary rate limits, `403`, and `429`
+- add jitter to retries so many failed writes do not resume together
+- keep repair jobs lower priority than fresh reconcile jobs
+- prefer dropping obsolete intermediate writes in favor of the newest desired state
+
+This keeps one noisy repository or one burst of group changes from flooding GitHub with comment traffic.
+
+The goal is:
+
+- local writes stay fast
+- desired state updates can happen immediately
+- GitHub writes are paced on purpose
 
 ## Trigger Rules
 
@@ -267,6 +299,7 @@ The repair worker should:
 - detect deleted comments and recreate them
 - detect duplicate managed comments by hidden marker
 - keep one canonical comment, update it, and delete the extras
+- run at lower priority than fresh reconcile work
 
 This gives `prtags` a clear path to recover after crashes, operator mistakes, or temporary GitHub API failures.
 
