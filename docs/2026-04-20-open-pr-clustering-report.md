@@ -30,6 +30,8 @@ Open PR duplicate: Mission Control v3.0 UI updates
 
 Exact title match; `#68861` explicitly says it replaces `#68756` after a clean rebuild.
 
+Initial clustering note: ✅ good initial duplicate call. Exact title match plus explicit `replaces` language is strong evidence.
+
 ### `legible-ferret-wc2p` duplicate
 
 Open PR duplicate: auto-reply queue orphaning
@@ -40,6 +42,8 @@ Open PR duplicate: auto-reply queue orphaning
 
 `#68914` and `#68908` have the same title and fix the same `FOLLOWUP_QUEUES` identity-guard bug; `#68839` addresses the same `#68838` late-drain queue deletion failure mode.
 
+Initial clustering note: ⚠️ probably too aggressive as a pure duplicate group. `#68914` and `#68908` are clear duplicates; `#68839` looks more like same-bug-family than the same exact patch.
+
 ### `living-burro-rkj0` duplicate
 
 Open PR duplicate: browser tool via `/tools/invoke`
@@ -48,6 +52,8 @@ Open PR duplicate: browser tool via `/tools/invoke`
 - [#68879](https://github.com/openclaw/openclaw/pull/68879)
 
 Same browser-tool `/tools/invoke` bug and near-identical root-cause description.
+
+Initial clustering note: ✅ good initial duplicate call. The two PRs describe the same bug and fix path.
 
 ### `evolving-spaniel-9ojm` duplicate
 
@@ -58,6 +64,8 @@ Open PR duplicate: gateway `nodeWakeById` no-registration cleanup
 
 Same stale `nodeWakeById` leak on the no-registration early return; both reference `#68847`.
 
+Initial clustering note: ✅ good initial duplicate call. Both PRs target the same leak and cite the same issue.
+
 ### `actual-grouse-o3j8` duplicate
 
 Open PR duplicate: onboard Homebrew prompt on unsupported platforms
@@ -66,6 +74,8 @@ Open PR duplicate: onboard Homebrew prompt on unsupported platforms
 - [#68894](https://github.com/openclaw/openclaw/pull/68894)
 
 Same `#68893` bug; one patch is FreeBSD-specific and the other broadens it to all unsupported platforms.
+
+Initial clustering note: ⚠️ defensible, but too narrow. The pair is related, but the broader issue family now clearly includes newer PRs that the first pass missed.
 
 ### `modern-rhino-knzo` duplicate
 
@@ -76,6 +86,8 @@ Open PR duplicate: gateway `costUsageCache` growth
 
 Same `#68841` cache-growth problem with alternative eviction strategies.
 
+Initial clustering note: ✅ good initial duplicate call. Same cache-growth bug, two alternative eviction approaches.
+
 ### `crisp-shark-7utq` duplicate
 
 Open PR duplicate: allowlist heredoc approval gate
@@ -84,6 +96,8 @@ Open PR duplicate: allowlist heredoc approval gate
 - [#68824](https://github.com/openclaw/openclaw/pull/68824)
 
 Same `#68661` heredoc-approval regression; one is narrower, one removes the blanket gate.
+
+Initial clustering note: ✅ good initial duplicate call, but incomplete. `pr-search-cli` found an older related PR that should probably be considered part of the same family.
 
 ### `able-shepherd-ttf8` duplicate
 
@@ -94,6 +108,8 @@ Open PR duplicate: streaming usage for non-default openai-completions
 
 Same `#68707` usage-tracking regression for local/custom OpenAI-compatible providers.
 
+Initial clustering note: ✅ strong initial call. Exact agreement with `pr-search-cli`.
+
 ### `patient-piglet-45hj` duplicate
 
 Open PR duplicate: Windows `claude` cmd shim spawning
@@ -102,6 +118,8 @@ Open PR duplicate: Windows `claude` cmd shim spawning
 - [#68819](https://github.com/openclaw/openclaw/pull/68819)
 
 Same `#68788` Windows `claude-cli` spawn failure; `#68849` is the narrower allowlist subset of `#68819`.
+
+Initial clustering note: ⚠️ valid pair, but incomplete. The initial grouping caught the main overlap but missed another related Windows `claude` shim PR.
 
 ### `legal-wolf-dmw6` duplicate
 
@@ -112,6 +130,8 @@ Open PR duplicate: Gemma 4 reasoning detection
 
 Same `#68728` Gemma 4 reasoning-model detection gap.
 
+Initial clustering note: ⚠️ valid pair, but incomplete. The initial grouping was right about the overlap, but missed an older related Gemma 4 PR.
+
 ### `exciting-crappie-yw0w` issue-family
 
 Open PR cluster: memory dreaming noise from `#68449`
@@ -121,6 +141,8 @@ Open PR cluster: memory dreaming noise from `#68449`
 
 `#68876` explicitly says it is a companion to `#68870`; both address different halves of `#68449`.
 
+Initial clustering note: ✅ good issue-family cluster. The initial pass correctly treated these as companion fixes, not strict duplicates.
+
 ### `discrete-airedale-t4tc` issue-family
 
 Open PR cluster: preserve TTS transcript text
@@ -129,6 +151,8 @@ Open PR cluster: preserve TTS transcript text
 - [#68869](https://github.com/openclaw/openclaw/pull/68869)
 
 `#68877` explicitly says it is independent of and complementary to `#68869`; both preserve spoken text at different layers.
+
+Initial clustering note: ✅ good issue-family cluster. The explicit “independent of and complementary to” wording is stronger than what `pr-search-cli` currently captures.
 
 ## Comparison Against `pr-search-cli`
 
@@ -148,21 +172,6 @@ In the table below, `Slopfarmer clustering` means the current `pr-search-cli` is
 | `legal-wolf-dmw6` Gemma 4 reasoning detection | [#68762](https://github.com/openclaw/openclaw/pull/68762), [#68740](https://github.com/openclaw/openclaw/pull/68740) | `cluster-68193-4`: [#68193](https://github.com/openclaw/openclaw/pull/68193), [#68740](https://github.com/openclaw/openclaw/pull/68740), [#68762](https://github.com/openclaw/openclaw/pull/68762) | Slopfarmer | It contains our pair and also includes older PR `#68193`, so it is broader on the same issue family. |
 | `exciting-crappie-yw0w` memory dreaming noise from `#68449` | [#68876](https://github.com/openclaw/openclaw/pull/68876), [#68870](https://github.com/openclaw/openclaw/pull/68870) | `cluster-68449-4`: [#68473](https://github.com/openclaw/openclaw/pull/68473), [#68870](https://github.com/openclaw/openclaw/pull/68870), [#68876](https://github.com/openclaw/openclaw/pull/68876) | Slopfarmer | It contains our companion pair and also picks up `#68473`, making the issue-family cluster more complete. |
 | `discrete-airedale-t4tc` preserve TTS transcript text | [#68877](https://github.com/openclaw/openclaw/pull/68877), [#68869](https://github.com/openclaw/openclaw/pull/68869) | none | Agent | Explicit complementary relationship in the PR body, but no current `pr-search-cli` issue cluster support. |
-
-## Notes On The Initial Clustering
-
-- ✅ `eager-piglet-i6pr`: good initial duplicate call. Exact title match plus explicit `replaces` language is strong evidence.
-- ⚠️ `legible-ferret-wc2p`: probably too aggressive as a pure duplicate group. `#68914` and `#68908` are clear duplicates; `#68839` looks more like same-bug-family than the same exact patch.
-- ✅ `living-burro-rkj0`: good initial duplicate call. The two PRs describe the same browser-tool `/tools/invoke` bug and fix path.
-- ✅ `evolving-spaniel-9ojm`: good initial duplicate call. Both PRs target the same `nodeWakeById` leak and cite the same issue.
-- ⚠️ `actual-grouse-o3j8`: defensible, but too narrow. The pair is related, but the broader issue family now clearly includes newer PRs that the first pass missed.
-- ✅ `modern-rhino-knzo`: good initial duplicate call. Same cache-growth bug, two alternative eviction approaches.
-- ✅ `crisp-shark-7utq`: good initial duplicate call, but incomplete. `pr-search-cli` found an older related PR that should probably be considered part of the same family.
-- ✅ `able-shepherd-ttf8`: strong initial call. Exact agreement with `pr-search-cli`.
-- ⚠️ `patient-piglet-45hj`: valid pair, but incomplete. The initial grouping caught the main overlap but missed another related Windows `claude` shim PR.
-- ⚠️ `legal-wolf-dmw6`: valid pair, but incomplete. The initial grouping was right about the overlap, but missed an older related Gemma 4 PR.
-- ✅ `exciting-crappie-yw0w`: good issue-family cluster. The initial pass correctly treated these as companion fixes, not strict duplicates.
-- ✅ `discrete-airedale-t4tc`: good issue-family cluster. The explicit “independent of and complementary to” wording is stronger than what `pr-search-cli` currently captures.
 
 ## Full 100-PR Disposition
 
