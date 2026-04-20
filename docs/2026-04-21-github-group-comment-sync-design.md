@@ -62,11 +62,11 @@ Recommended structure:
 Example shape:
 
 ```md
-<!-- prtags:group-comment v1 group_id=coherent-skunk-mbll target_type=pull_request target_number=24 -->
+<!-- prtags:group-comment v1 group_id=coherent-skunk-mbll repo_id=12345 target_type=pull_request target_number=24 -->
 
 Related work from PRtags group `coherent-skunk-mbll`
 
-Name: Repository Rename Follow-up
+Title: Repository Rename Follow-up
 Status: open
 
 | Number | Title |
@@ -80,6 +80,14 @@ The visible body should not be raw JSON.
 
 The machine marker is enough to identify the comment if local sync state is lost and a repair pass needs to search for it.
 
+For v1, the marker should include:
+
+- schema version
+- group public ID
+- GitHub repository ID
+- target type
+- target number
+
 The rule for what belongs in the table should be explicit:
 
 - fields that map to each related issue or pull request go in the table
@@ -87,8 +95,8 @@ The rule for what belongs in the table should be explicit:
 
 For v1, the group-level fields above the table should be:
 
-- `Name`
-- `Status`
+- `Title`
+- optional `Status`
 
 For v1, the table should only include:
 
@@ -98,6 +106,8 @@ For v1, the table should only include:
 `Number` should be the GitHub link target.
 
 The group name and other shared metadata should appear above the table rather than repeating on every row.
+
+`Status` should only be rendered when it is present and not equal to the normal default of `open`.
 
 The current target should not appear in its own table.
 
@@ -255,7 +265,8 @@ GitHub writes should drain slowly and predictably even if local group state chan
 
 Recommended rules:
 
-- cap reconcile concurrency per GitHub installation or per repository
+- use one mutating write lane per GitHub installation by default
+- wait at least one second between mutating GitHub comment writes
 - back off aggressively on GitHub secondary rate limits, `403`, and `429`
 - add jitter to retries so many failed writes do not resume together
 - keep repair jobs lower priority than fresh reconcile jobs
@@ -314,6 +325,8 @@ So the River worker should use:
 
 It does not need pull-request review comments.
 
+This write path triggers GitHub notifications, so comment creation and updates should be treated as mutating traffic and paced deliberately.
+
 ## Managed Comment Policy
 
 Managed comments should be owned by `prtags`.
@@ -362,6 +375,13 @@ Recommended split:
 - keep the current OAuth app for CLI login and permission checks
 - add a GitHub App for outbound comment sync
 
+Recommended GitHub App repository permissions:
+
+- `Issues: write`
+- `Pull requests: write`
+
+This is the simplest reliable permission set for reading, creating, updating, and deleting managed comments on both issues and pull requests without special-case permission handling.
+
 ## Integration Points In Current Code
 
 The current code already has most of the right local building blocks:
@@ -389,6 +409,12 @@ The default rollout should be:
 
 `prtags` should provide an explicit function to trigger comment creation or reconciliation for one group on demand.
 
+The simplest first surface is a CLI command, not a new admin HTTP endpoint.
+
+Recommended first command shape:
+
+- `prtags group sync-comments <group-id>`
+
 That function is useful for:
 
 - operator-driven backfill of selected groups
@@ -402,7 +428,8 @@ The smallest shippable version should:
 - support only issue and pull request group members
 - support only same-repository linked items in the rendered comment
 - render membership links only
-- render `Name` and `Status` above the table
+- render `Title` above the table
+- render `Status` only when it is non-empty and not `open`
 - create one managed comment per `(group, target)`
 - exclude the current target from its own table
 - skip comment creation for singleton groups
@@ -417,6 +444,24 @@ It should not initially:
 - include arbitrary group annotations in the body
 - try to sync historical comments written outside `prtags`
 - support many different GitHub write identities
+
+## Permission Loss And Staleness
+
+If the GitHub App loses access to a repository or is not installed, `prtags` should not keep retrying at normal speed forever.
+
+Recommended behavior:
+
+- mark the sync row with a permission-related error state
+- stop hot retries for that row
+- retry only on an explicit per-group trigger, a later repair sweep, or after installation state changes
+
+This avoids spamming GitHub with doomed requests while still keeping the row repairable.
+
+For otherwise healthy rows, stale repair should be slow and conservative.
+
+Recommended first rule:
+
+- treat a healthy row as stale only if `last_synced_at` is older than 24 hours
 
 ## Recommendation
 
