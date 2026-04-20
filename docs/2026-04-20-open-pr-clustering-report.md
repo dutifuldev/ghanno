@@ -149,6 +149,21 @@ In the table below, `Slopfarmer clustering` means the current `pr-search-cli` is
 | `exciting-crappie-yw0w` memory dreaming noise from `#68449` | [#68876](https://github.com/openclaw/openclaw/pull/68876), [#68870](https://github.com/openclaw/openclaw/pull/68870) | `cluster-68449-4`: [#68473](https://github.com/openclaw/openclaw/pull/68473), [#68870](https://github.com/openclaw/openclaw/pull/68870), [#68876](https://github.com/openclaw/openclaw/pull/68876) | Slopfarmer | It contains our companion pair and also picks up `#68473`, making the issue-family cluster more complete. |
 | `discrete-airedale-t4tc` preserve TTS transcript text | [#68877](https://github.com/openclaw/openclaw/pull/68877), [#68869](https://github.com/openclaw/openclaw/pull/68869) | none | Agent | Explicit complementary relationship in the PR body, but no current `pr-search-cli` issue cluster support. |
 
+## Notes On The Initial Clustering
+
+- ✅ `eager-piglet-i6pr`: good initial duplicate call. Exact title match plus explicit `replaces` language is strong evidence.
+- ⚠️ `legible-ferret-wc2p`: probably too aggressive as a pure duplicate group. `#68914` and `#68908` are clear duplicates; `#68839` looks more like same-bug-family than the same exact patch.
+- ✅ `living-burro-rkj0`: good initial duplicate call. The two PRs describe the same browser-tool `/tools/invoke` bug and fix path.
+- ✅ `evolving-spaniel-9ojm`: good initial duplicate call. Both PRs target the same `nodeWakeById` leak and cite the same issue.
+- ⚠️ `actual-grouse-o3j8`: defensible, but too narrow. The pair is related, but the broader issue family now clearly includes newer PRs that the first pass missed.
+- ✅ `modern-rhino-knzo`: good initial duplicate call. Same cache-growth bug, two alternative eviction approaches.
+- ✅ `crisp-shark-7utq`: good initial duplicate call, but incomplete. `pr-search-cli` found an older related PR that should probably be considered part of the same family.
+- ✅ `able-shepherd-ttf8`: strong initial call. Exact agreement with `pr-search-cli`.
+- ⚠️ `patient-piglet-45hj`: valid pair, but incomplete. The initial grouping caught the main overlap but missed another related Windows `claude` shim PR.
+- ⚠️ `legal-wolf-dmw6`: valid pair, but incomplete. The initial grouping was right about the overlap, but missed an older related Gemma 4 PR.
+- ✅ `exciting-crappie-yw0w`: good issue-family cluster. The initial pass correctly treated these as companion fixes, not strict duplicates.
+- ✅ `discrete-airedale-t4tc`: good issue-family cluster. The explicit “independent of and complementary to” wording is stronger than what `pr-search-cli` currently captures.
+
 ## Full 100-PR Disposition
 
 | PR | Result | Notes |
