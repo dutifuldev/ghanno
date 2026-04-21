@@ -39,7 +39,7 @@ func newRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use: "prtags",
 	}
-	root.PersistentFlags().StringVar(&serverURL, "server", "http://127.0.0.1:8081", "PRtags API base URL")
+	root.PersistentFlags().StringVar(&serverURL, "server", "https://prtags.dutiful.dev", "PRtags API base URL")
 
 	root.AddCommand(newAuthCommand())
 	root.AddCommand(newServeCommand())
