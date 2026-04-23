@@ -74,6 +74,14 @@ jobs:
         if: steps.go-files.outputs.present == 'true'
         run: ./scripts/check-go-coverage.sh
 
+      - name: Build release artifacts in snapshot mode
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --snapshot --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -91,11 +99,3 @@ jobs:
         with:
           version: v2.11
           args: --timeout=5m
-
-      - name: Build release artifacts in snapshot mode
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: latest
-          args: release --snapshot --clean --skip=publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
