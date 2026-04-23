@@ -15,9 +15,9 @@ linters:
     - unused
   settings:
     cyclop:
-      max-complexity: 40
+      max-complexity: 10
     gocognit:
-      min-complexity: 82
+      min-complexity: 15
 
 issues:
   max-issues-per-linter: 0
