@@ -194,16 +194,8 @@ func (s *Service) readRepositoryProjection(ctx context.Context, owner, repo stri
 	timer := database.StartQueryStep(ctx, "repo_read")
 	defer timer.Done()
 
-	repository, err := s.lookupRepositoryProjection(ctx, owner, repo)
-	if err == nil {
-		return repository, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return database.RepositoryProjection{}, err
-	}
-
-	mirrorRepository, mirrorErr := s.ghreplica.GetRepository(ctx, owner, repo)
-	if mirrorErr != nil {
+	mirrorRepository, err := s.ghreplica.GetRepository(ctx, owner, repo)
+	if err != nil {
 		return database.RepositoryProjection{}, ErrNotFound
 	}
 	if _, err := s.lookupRepositoryProjectionByGitHubID(ctx, mirrorRepository.ID); err != nil {

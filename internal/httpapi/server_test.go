@@ -333,7 +333,7 @@ func TestAPIUpdateAndArchiveFlow(t *testing.T) {
 func TestAPIListGroupCommentSyncTargets(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
-	ghClient := stubMirrorClient{fail: true}
+	ghClient := stubMirrorClient{}
 	indexer := core.NewIndexer(db, ghClient, embedding.NewLocalHashProvider("local-hash@1", database.EmbeddingDimensions))
 	service := core.NewService(db, ghClient, permissions.AllowAllChecker{}, indexer)
 	server := httpapi.NewServer(db, service, true)

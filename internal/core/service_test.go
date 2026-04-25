@@ -178,6 +178,25 @@ func TestReadRepositoryProjectionResolvesRenamedRepositoryByGitHubID(t *testing.
 	require.Equal(t, "widgets", stored.Name)
 }
 
+func TestReadRepositoryProjectionRejectsReusedRepositoryPath(t *testing.T) {
+	ctx := context.Background()
+	aliases := map[string]ghreplica.Repository{}
+	service, _, server := newTestServiceWithBatchOptions(t, batchBehavior{repositoryAliases: aliases})
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "user", ID: "tester"}
+	_, err := service.CreateFieldDefinition(ctx, actor, "acme", "widgets", FieldDefinitionInput{
+		Name:        "intent",
+		ObjectScope: "pull_request",
+		FieldType:   "text",
+	}, "")
+	require.NoError(t, err)
+
+	aliases["acme/widgets"] = testRepository("acme", "widgets", 202)
+	_, err = service.ListFieldDefinitions(ctx, "acme", "widgets")
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestSetAnnotationsRejectsFractionalInteger(t *testing.T) {
 	ctx := context.Background()
 	service, _, server := newTestService(t)
