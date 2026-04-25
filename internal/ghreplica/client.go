@@ -113,15 +113,27 @@ func (c *Client) batchGetObjectsReader(ctx context.Context, repositoryID int64, 
 
 func (c *Client) batchGetObjectsJoined(ctx context.Context, repositoryID int64, objects []ObjectRef) ([]ObjectResult, error) {
 	issueNumbers, pullNumbers := objectNumbersByType(objects)
-	issuesByNumber, err := c.issueSummariesByNumberJoined(ctx, repositoryID, issueNumbers)
-	if err != nil {
-		return nil, err
+	if len(issueNumbers) == 0 && len(pullNumbers) == 0 {
+		return c.objectResultsFromSummaries(repositoryID, objects, nil, nil), nil
 	}
-	pullsByNumber, err := c.pullSummariesByNumberJoined(ctx, repositoryID, pullNumbers)
+
+	mirrorRepositoryID, err := c.repositoryMirrorID(ctx, repositoryID)
 	if err != nil {
 		return nil, err
 	}
 
+	issuesByNumber, err := c.issueSummariesByNumberJoined(ctx, mirrorRepositoryID, issueNumbers)
+	if err != nil {
+		return nil, err
+	}
+	pullsByNumber, err := c.pullSummariesByNumberJoined(ctx, mirrorRepositoryID, pullNumbers)
+	if err != nil {
+		return nil, err
+	}
+	return c.objectResultsFromSummaries(repositoryID, objects, issuesByNumber, pullsByNumber), nil
+}
+
+func (c *Client) objectResultsFromSummaries(_ int64, objects []ObjectRef, issuesByNumber, pullsByNumber map[int]ObjectSummary) []ObjectResult {
 	results := make([]ObjectResult, 0, len(objects))
 	for _, object := range objects {
 		result := ObjectResult{
@@ -142,7 +154,7 @@ func (c *Client) batchGetObjectsJoined(ctx context.Context, repositoryID int64, 
 		}
 		results = append(results, result)
 	}
-	return results, nil
+	return results
 }
 
 func objectNumbersByType(objects []ObjectRef) ([]int, []int) {
@@ -205,7 +217,19 @@ type objectSummaryRow struct {
 	UpdatedAt   time.Time
 }
 
-func (c *Client) issueSummariesByNumberJoined(ctx context.Context, repositoryID int64, numbers []int) (map[int]ObjectSummary, error) {
+func (c *Client) repositoryMirrorID(ctx context.Context, githubRepositoryID int64) (uint, error) {
+	var row struct {
+		ID uint
+	}
+	err := c.db.WithContext(ctx).
+		Table(c.tables.Repositories).
+		Select("id").
+		Where("github_id = ?", githubRepositoryID).
+		First(&row).Error
+	return row.ID, err
+}
+
+func (c *Client) issueSummariesByNumberJoined(ctx context.Context, mirrorRepositoryID uint, numbers []int) (map[int]ObjectSummary, error) {
 	if len(numbers) == 0 {
 		return map[int]ObjectSummary{}, nil
 	}
@@ -218,17 +242,16 @@ func (c *Client) issueSummariesByNumberJoined(ctx context.Context, repositoryID 
 		       u.login AS author_login,
 		       i.github_updated_at AS updated_at
 		FROM `+c.tables.Issues+` i
-		JOIN `+c.tables.Repositories+` r ON r.id = i.repository_id
 		LEFT JOIN `+c.tables.Users+` u ON u.id = i.author_id
-		WHERE r.github_id = ? AND i.number IN ?
-	`, repositoryID, numbers).Scan(&rows).Error
+		WHERE i.repository_id = ? AND i.number IN ?
+	`, mirrorRepositoryID, numbers).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	return summariesFromRows(rows), nil
 }
 
-func (c *Client) pullSummariesByNumberJoined(ctx context.Context, repositoryID int64, numbers []int) (map[int]ObjectSummary, error) {
+func (c *Client) pullSummariesByNumberJoined(ctx context.Context, mirrorRepositoryID uint, numbers []int) (map[int]ObjectSummary, error) {
 	if len(numbers) == 0 {
 		return map[int]ObjectSummary{}, nil
 	}
@@ -241,11 +264,10 @@ func (c *Client) pullSummariesByNumberJoined(ctx context.Context, repositoryID i
 		       u.login AS author_login,
 		       pr.github_updated_at AS updated_at
 		FROM `+c.tables.PullRequests+` pr
-		JOIN `+c.tables.Repositories+` r ON r.id = pr.repository_id
 		JOIN `+c.tables.Issues+` issue ON issue.id = pr.issue_id
 		LEFT JOIN `+c.tables.Users+` u ON u.id = issue.author_id
-		WHERE r.github_id = ? AND pr.number IN ?
-	`, repositoryID, numbers).Scan(&rows).Error
+		WHERE pr.repository_id = ? AND pr.number IN ?
+	`, mirrorRepositoryID, numbers).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}

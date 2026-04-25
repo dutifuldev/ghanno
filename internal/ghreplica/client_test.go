@@ -126,6 +126,14 @@ func TestNewSchemaClientBatchGetObjectsUsesJoinedSummaries(t *testing.T) {
 	require.False(t, results[2].Found)
 }
 
+func TestNewSchemaClientBatchGetObjectsPreservesMissingRepositoryError(t *testing.T) {
+	db := openMirrorTestDB(t)
+	client := NewSchemaClient(db, "main")
+
+	_, err := client.BatchGetObjects(context.Background(), 999, []ObjectRef{{Type: "issue", Number: 11}})
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
 func openMirrorTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{
