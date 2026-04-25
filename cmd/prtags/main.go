@@ -345,18 +345,36 @@ func ensureConfiguredSchema(ctx context.Context, db *gorm.DB, schema string) err
 }
 
 func databaseURLWithSearchPath(databaseURL, schema string) (string, error) {
-	parsed, err := url.Parse(databaseURL)
-	if err != nil {
-		return "", err
-	}
 	searchPath := schema
 	if schema != "public" {
 		searchPath += ",public"
+	}
+	trimmedURL := strings.TrimSpace(databaseURL)
+	if !strings.Contains(trimmedURL, "://") && isPostgresKeywordValueDSN(trimmedURL) {
+		return trimmedURL + " search_path=" + postgresKeywordValue(searchPath), nil
+	}
+
+	parsed, err := url.Parse(trimmedURL)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" {
+		return "", fmt.Errorf("DATABASE_URL must be a URL or PostgreSQL keyword/value DSN")
 	}
 	query := parsed.Query()
 	query.Set("search_path", searchPath)
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
+}
+
+func isPostgresKeywordValueDSN(databaseURL string) bool {
+	fields := strings.Fields(databaseURL)
+	return len(fields) > 0 && strings.Contains(fields[0], "=")
+}
+
+func postgresKeywordValue(value string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(value)
+	return "'" + escaped + "'"
 }
 
 func buildCommentSyncService(db *gorm.DB, cfg config.Config) *core.CommentSyncService {

@@ -237,6 +237,23 @@ func TestEnsureConfiguredSchemaSkipsPublic(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestDatabaseURLWithSearchPathPreservesURLDSN(t *testing.T) {
+	out, err := databaseURLWithSearchPath("postgres://user:pass@127.0.0.1:5432/ghreplica?sslmode=disable", "prtags")
+	require.NoError(t, err)
+	require.Equal(t, "postgres://user:pass@127.0.0.1:5432/ghreplica?search_path=prtags%2Cpublic&sslmode=disable", out)
+}
+
+func TestDatabaseURLWithSearchPathPreservesKeywordValueDSN(t *testing.T) {
+	out, err := databaseURLWithSearchPath("host=/cloudsql/project:region:instance user=bob dbname=ghreplica sslmode=disable", "prtags")
+	require.NoError(t, err)
+	require.Equal(t, "host=/cloudsql/project:region:instance user=bob dbname=ghreplica sslmode=disable search_path='prtags,public'", out)
+}
+
+func TestDatabaseURLWithSearchPathRejectsUnsupportedDSN(t *testing.T) {
+	_, err := databaseURLWithSearchPath("not a dsn", "prtags")
+	require.ErrorContains(t, err, "DATABASE_URL must be a URL or PostgreSQL keyword/value DSN")
+}
+
 func newMockPostgresDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
