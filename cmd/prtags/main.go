@@ -308,6 +308,9 @@ func openConfiguredDatabase(cfg config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ensureConfiguredSchema(context.Background(), db, cfg.PRTagsSchema); err != nil {
+		return nil, err
+	}
 	if err := database.RunMigrations(db); err != nil {
 		return nil, err
 	}
@@ -315,6 +318,30 @@ func openConfiguredDatabase(cfg config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func ensureConfiguredSchema(ctx context.Context, db *gorm.DB, schema string) error {
+	if schema == "public" {
+		return nil
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	var exists bool
+	if err := sqlDB.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_namespace
+			WHERE nspname = $1
+		)
+	`, schema).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("PRTAGS_SCHEMA %q does not exist", schema)
+	}
+	return nil
 }
 
 func databaseURLWithSearchPath(databaseURL, schema string) (string, error) {

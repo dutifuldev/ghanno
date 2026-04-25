@@ -235,6 +235,9 @@ func openOpsService() (*core.Service, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := ensureConfiguredSchema(context.Background(), db, cfg.PRTagsSchema); err != nil {
+		return nil, nil, err
+	}
 	if err := database.RunMigrations(db); err != nil {
 		return nil, nil, err
 	}

@@ -8,14 +8,17 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/dutifuldev/prtags/internal/auth"
 	"github.com/dutifuldev/prtags/internal/config"
 	"github.com/dutifuldev/prtags/internal/jsend"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -199,4 +202,53 @@ func TestOpenOpsServiceWithSQLite(t *testing.T) {
 	_, cleanup, err := openOpsService()
 	require.Error(t, err)
 	require.Nil(t, cleanup)
+}
+
+func TestEnsureConfiguredSchemaRejectsMissingSchema(t *testing.T) {
+	db, mock, cleanup := newMockPostgresDB(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM pg_namespace\n\t\t\tWHERE nspname = $1\n\t\t)")).
+		WithArgs("prtags").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+	err := ensureConfiguredSchema(context.Background(), db, "prtags")
+	require.ErrorContains(t, err, `PRTAGS_SCHEMA "prtags" does not exist`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestEnsureConfiguredSchemaAllowsExistingSchema(t *testing.T) {
+	db, mock, cleanup := newMockPostgresDB(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM pg_namespace\n\t\t\tWHERE nspname = $1\n\t\t)")).
+		WithArgs("prtags").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	require.NoError(t, ensureConfiguredSchema(context.Background(), db, "prtags"))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestEnsureConfiguredSchemaSkipsPublic(t *testing.T) {
+	db, mock, cleanup := newMockPostgresDB(t)
+	defer cleanup()
+
+	require.NoError(t, ensureConfiguredSchema(context.Background(), db, "public"))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func newMockPostgresDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
+	t.Helper()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		Conn:                 sqlDB,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	require.NoError(t, err)
+
+	return db, mock, func() {
+		_ = sqlDB.Close()
+	}
 }
