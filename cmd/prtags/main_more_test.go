@@ -134,7 +134,8 @@ func TestAuthAndRuntimeHelpers(t *testing.T) {
 		DBMaxIdleConns:     1,
 		DBConnMaxIdleTime:  time.Minute,
 		DBConnMaxLifetime:  time.Minute,
-		GHReplicaBaseURL:   "https://ghreplica.example",
+		PRTagsSchema:       "public",
+		GHReplicaSchema:    "public",
 		WorkerPollInterval: time.Second,
 		EmbeddingModel:     "local-hash@1",
 	})
@@ -189,7 +190,6 @@ func TestFieldAndAccessHelpers(t *testing.T) {
 func TestOpenOpsServiceWithSQLite(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("DATABASE_URL", "sqlite://"+filepath.Join(tempDir, "ops.db"))
-	t.Setenv("GHREPLICA_BASE_URL", "https://ghreplica.example")
 	t.Setenv("DB_MAX_OPEN_CONNS", "1")
 	t.Setenv("DB_MAX_IDLE_CONNS", "1")
 	t.Setenv("DB_CONN_MAX_IDLE_TIME", "1m")

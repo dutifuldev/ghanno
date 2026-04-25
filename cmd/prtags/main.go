@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -273,7 +274,7 @@ func openServeRuntime() (config.Config, serveRuntime, error) {
 	if !cfg.AllowUnauthWrites {
 		checker = permissions.NewGitHubChecker(0)
 	}
-	ghClient := ghreplica.NewClient(cfg.GHReplicaBaseURL)
+	ghClient := ghreplica.NewSchemaClient(db, cfg.GHReplicaSchema)
 	indexer := core.NewIndexer(db, ghClient, embedding.NewLocalHashProvider(cfg.EmbeddingModel, database.EmbeddingDimensions))
 	service := core.NewService(db, ghClient, checker, indexer)
 	commentSync := buildCommentSyncService(db, cfg)
@@ -294,7 +295,11 @@ func openServeRuntime() (config.Config, serveRuntime, error) {
 }
 
 func openConfiguredDatabase(cfg config.Config) (*gorm.DB, error) {
-	db, err := database.OpenWithPool(cfg.DatabaseURL, database.PoolConfig{
+	databaseURL, err := databaseURLWithSearchPath(cfg.DatabaseURL, cfg.PRTagsSchema)
+	if err != nil {
+		return nil, err
+	}
+	db, err := database.OpenWithPool(databaseURL, database.PoolConfig{
 		MaxOpenConns:    cfg.DBMaxOpenConns,
 		MaxIdleConns:    cfg.DBMaxIdleConns,
 		ConnMaxIdleTime: cfg.DBConnMaxIdleTime,
@@ -310,6 +315,21 @@ func openConfiguredDatabase(cfg config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func databaseURLWithSearchPath(databaseURL, schema string) (string, error) {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		return "", err
+	}
+	searchPath := schema
+	if schema != "public" {
+		searchPath += ",public"
+	}
+	query := parsed.Query()
+	query.Set("search_path", searchPath)
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
 }
 
 func buildCommentSyncService(db *gorm.DB, cfg config.Config) *core.CommentSyncService {

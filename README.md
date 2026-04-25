@@ -242,7 +242,8 @@ The CLI resolves auth in this order:
 
 ## Local Development
 
-The local development loop is straightforward. Start a Postgres instance, point `PRtags` at a running `ghreplica`, and run the API:
+The local development loop is straightforward. Start a Postgres instance with
+the required extensions and run the API:
 
 ```bash
 docker run --rm --name prtags-postgres \
@@ -256,7 +257,8 @@ export DB_MAX_OPEN_CONNS=5
 export DB_MAX_IDLE_CONNS=2
 export DB_CONN_MAX_IDLE_TIME=5m
 export DB_CONN_MAX_LIFETIME=30m
-export GHREPLICA_BASE_URL='https://ghreplica.dutiful.dev'
+export PRTAGS_SCHEMA=public
+export GHREPLICA_SCHEMA=public
 export ALLOW_UNAUTH_WRITES=true
 go run ./cmd/prtags serve
 ```
@@ -328,17 +330,27 @@ This is the simplest local install path when you only need the client.
 
 If you want to run `PRtags` yourself, think of deployment as standing up a second service next to `ghreplica`, not as extending the `ghreplica` process directly.
 
+The deployment uses one shared Postgres database with separate
+schemas:
+
+- configured mirror schema for mirrored GitHub data
+- `prtags` schema for groups, annotations, projections, and jobs
+
+That shared-database topology is what allows normal SQL joins between `PRtags`
+groups and `ghreplica` mirror tables. It deprecates the separate `PRtags`
+database deployment shape, but not the `PRtags` tables or data model.
+
 At minimum you need:
 
-- a separate Postgres database for `PRtags`
-- network access to a running `ghreplica` instance
+- a shared Postgres database with `ghreplica` and `prtags` schemas
+- a running `ghreplica` service writing mirror data into that database
 - GitHub-authenticated requests for write operations if you want real permission enforcement
 - a decision about the embedding provider and model you want to use beyond local development defaults
 
 The basic shape is:
 
-1. create the `PRtags` database
-2. point `PRtags` at `ghreplica`
+1. create the shared database schemas
+2. point `PRtags` at the shared database
 3. run migrations
 4. start the API
 5. verify health, readiness, and a few repo-scoped operations
@@ -347,7 +359,7 @@ The clean deployment boundary is:
 
 - separate repo
 - separate service
-- separate database
+- separate schema in the shared database
 - same VM is fine at first
 - separate domain is preferred once you expose it publicly
 
