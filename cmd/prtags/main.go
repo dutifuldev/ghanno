@@ -219,6 +219,8 @@ func newServeCommand() *cobra.Command {
 				<-ctx.Done()
 				_ = runtime.dispatcher.Stop(context.Background())
 				_ = runtime.server.Echo().Shutdown(context.Background())
+				_ = closeGormDB(runtime.workerDB)
+				_ = closeGormDB(runtime.db)
 			}()
 			return runtime.server.Echo().Start(cfg.ListenAddr)
 		},
@@ -236,6 +238,7 @@ func newWorkerCommand() *cobra.Command {
 
 type serveRuntime struct {
 	db         *gorm.DB
+	workerDB   *gorm.DB
 	dispatcher *core.RiverDispatcher
 	server     *httpapi.Server
 }
@@ -256,7 +259,10 @@ func newWorkerRunCommand() *cobra.Command {
 				return err
 			}
 			<-cmd.Context().Done()
-			return runtime.dispatcher.Stop(context.Background())
+			err = runtime.dispatcher.Stop(context.Background())
+			_ = closeGormDB(runtime.workerDB)
+			_ = closeGormDB(runtime.db)
+			return err
 		},
 	}
 }
@@ -270,6 +276,11 @@ func openServeRuntime() (config.Config, serveRuntime, error) {
 	if err != nil {
 		return config.Config{}, serveRuntime{}, err
 	}
+	workerDB, err := openConfiguredWorkerDatabase(cfg)
+	if err != nil {
+		_ = closeGormDB(db)
+		return config.Config{}, serveRuntime{}, err
+	}
 	checker := permissions.Checker(permissions.AllowAllChecker{})
 	if !cfg.AllowUnauthWrites {
 		checker = permissions.NewGitHubChecker(0)
@@ -278,8 +289,13 @@ func openServeRuntime() (config.Config, serveRuntime, error) {
 	indexer := core.NewIndexer(db, mirrorReader, embedding.NewLocalHashProvider(cfg.EmbeddingModel, database.EmbeddingDimensions))
 	service := core.NewService(db, mirrorReader, checker, indexer)
 	commentSync := buildCommentSyncService(db, cfg, mirrorReader)
-	dispatcher, err := newRiverDispatcherForDB(db, indexer, commentSync)
+	workerMirrorReader := mirrordb.NewSchemaReader(workerDB, cfg.GHReplicaSchema)
+	workerIndexer := core.NewIndexer(workerDB, workerMirrorReader, embedding.NewLocalHashProvider(cfg.EmbeddingModel, database.EmbeddingDimensions))
+	workerCommentSync := buildCommentSyncService(workerDB, cfg, workerMirrorReader)
+	dispatcher, err := newRiverDispatcherForDB(workerDB, workerIndexer, workerCommentSync)
 	if err != nil {
+		_ = closeGormDB(workerDB)
+		_ = closeGormDB(db)
 		return config.Config{}, serveRuntime{}, err
 	}
 	service.SetJobDispatcher(dispatcher)
@@ -287,37 +303,70 @@ func openServeRuntime() (config.Config, serveRuntime, error) {
 	if commentSync != nil {
 		commentSync.SetDispatcher(dispatcher)
 	}
+	if workerCommentSync != nil {
+		workerCommentSync.SetDispatcher(dispatcher)
+	}
 	return cfg, serveRuntime{
 		db:         db,
+		workerDB:   workerDB,
 		dispatcher: dispatcher,
 		server:     httpapi.NewServer(db, service, cfg.AllowUnauthWrites),
 	}, nil
 }
 
 func openConfiguredDatabase(cfg config.Config) (*gorm.DB, error) {
-	databaseURL, err := databaseURLWithSearchPath(cfg.DatabaseURL, cfg.PRTagsSchema)
-	if err != nil {
-		return nil, err
-	}
-	db, err := database.OpenWithPool(databaseURL, database.PoolConfig{
+	return openConfiguredDatabaseWithPool(cfg, database.PoolConfig{
 		MaxOpenConns:    cfg.DBMaxOpenConns,
 		MaxIdleConns:    cfg.DBMaxIdleConns,
 		ConnMaxIdleTime: cfg.DBConnMaxIdleTime,
 		ConnMaxLifetime: cfg.DBConnMaxLifetime,
-	})
+	}, true)
+}
+
+func openConfiguredWorkerDatabase(cfg config.Config) (*gorm.DB, error) {
+	return openConfiguredDatabaseWithPool(cfg, database.PoolConfig{
+		MaxOpenConns:    cfg.DBWorkerMaxOpenConns,
+		MaxIdleConns:    cfg.DBWorkerMaxIdleConns,
+		ConnMaxIdleTime: cfg.DBConnMaxIdleTime,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+	}, false)
+}
+
+func openConfiguredDatabaseWithPool(cfg config.Config, pool database.PoolConfig, runMigrations bool) (*gorm.DB, error) {
+	databaseURL, err := databaseURLWithSearchPath(cfg.DatabaseURL, cfg.PRTagsSchema)
+	if err != nil {
+		return nil, err
+	}
+	db, err := database.OpenWithPool(databaseURL, pool)
 	if err != nil {
 		return nil, err
 	}
 	if err := ensureConfiguredSchema(context.Background(), db, cfg.PRTagsSchema); err != nil {
+		_ = closeGormDB(db)
 		return nil, err
 	}
-	if err := database.RunMigrations(db); err != nil {
-		return nil, err
-	}
-	if err := database.EnsureGroupPublicIDs(context.Background(), db); err != nil {
-		return nil, err
+	if runMigrations {
+		if err := database.RunMigrations(db); err != nil {
+			_ = closeGormDB(db)
+			return nil, err
+		}
+		if err := database.EnsureGroupPublicIDs(context.Background(), db); err != nil {
+			_ = closeGormDB(db)
+			return nil, err
+		}
 	}
 	return db, nil
+}
+
+func closeGormDB(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
 
 func ensureConfiguredSchema(ctx context.Context, db *gorm.DB, schema string) error {

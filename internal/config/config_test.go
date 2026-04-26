@@ -13,12 +13,16 @@ func TestFromEnvParsesDatabasePoolSettings(t *testing.T) {
 	t.Setenv("GHREPLICA_SCHEMA", "ghreplica")
 	t.Setenv("DB_MAX_OPEN_CONNS", "7")
 	t.Setenv("DB_MAX_IDLE_CONNS", "3")
+	t.Setenv("DB_WORKER_MAX_OPEN_CONNS", "4")
+	t.Setenv("DB_WORKER_MAX_IDLE_CONNS", "2")
 	t.Setenv("DB_CONN_MAX_IDLE_TIME", "90s")
 	t.Setenv("DB_CONN_MAX_LIFETIME", "45m")
 
 	cfg := FromEnv()
 	require.Equal(t, 7, cfg.DBMaxOpenConns)
 	require.Equal(t, 3, cfg.DBMaxIdleConns)
+	require.Equal(t, 4, cfg.DBWorkerMaxOpenConns)
+	require.Equal(t, 2, cfg.DBWorkerMaxIdleConns)
 	require.Equal(t, 90*time.Second, cfg.DBConnMaxIdleTime)
 	require.Equal(t, 45*time.Minute, cfg.DBConnMaxLifetime)
 	require.Equal(t, "prtags", cfg.PRTagsSchema)
@@ -28,15 +32,17 @@ func TestFromEnvParsesDatabasePoolSettings(t *testing.T) {
 
 func TestValidateRejectsInvalidDatabasePoolSettings(t *testing.T) {
 	cfg := Config{
-		DatabaseURL:        "postgres://example",
-		DBMaxOpenConns:     2,
-		DBMaxIdleConns:     3,
-		DBConnMaxIdleTime:  time.Minute,
-		DBConnMaxLifetime:  time.Minute,
-		PRTagsSchema:       "public",
-		GHReplicaSchema:    "public",
-		WorkerPollInterval: time.Second,
-		EmbeddingModel:     "local-hash@1",
+		DatabaseURL:          "postgres://example",
+		DBMaxOpenConns:       2,
+		DBMaxIdleConns:       3,
+		DBWorkerMaxOpenConns: 1,
+		DBWorkerMaxIdleConns: 1,
+		DBConnMaxIdleTime:    time.Minute,
+		DBConnMaxLifetime:    time.Minute,
+		PRTagsSchema:         "public",
+		GHReplicaSchema:      "public",
+		WorkerPollInterval:   time.Second,
+		EmbeddingModel:       "local-hash@1",
 	}
 
 	err := cfg.Validate()
@@ -56,6 +62,8 @@ func TestConfigHelpersAndGitHubAppValidation(t *testing.T) {
 		DatabaseURL:             "sqlite:///tmp/test.db",
 		DBMaxOpenConns:          1,
 		DBMaxIdleConns:          1,
+		DBWorkerMaxOpenConns:    1,
+		DBWorkerMaxIdleConns:    1,
 		DBConnMaxIdleTime:       time.Minute,
 		DBConnMaxLifetime:       time.Minute,
 		PRTagsSchema:            "public",
@@ -81,7 +89,8 @@ func TestConfigHelpersAndGitHubAppValidation(t *testing.T) {
 
 func TestConfigValidationErrors(t *testing.T) {
 	require.ErrorContains(t, validateDatabase(Config{}), "DATABASE_URL is required")
-	require.ErrorContains(t, validatePool(Config{DBMaxOpenConns: 0, DBMaxIdleConns: 0, DBConnMaxIdleTime: time.Second, DBConnMaxLifetime: time.Second}), "DB_MAX_OPEN_CONNS")
+	require.ErrorContains(t, validatePool(Config{DBMaxOpenConns: 0, DBMaxIdleConns: 0, DBWorkerMaxOpenConns: 1, DBWorkerMaxIdleConns: 1, DBConnMaxIdleTime: time.Second, DBConnMaxLifetime: time.Second}), "DB_MAX_OPEN_CONNS")
+	require.ErrorContains(t, validatePool(Config{DBMaxOpenConns: 1, DBMaxIdleConns: 1, DBWorkerMaxOpenConns: 0, DBWorkerMaxIdleConns: 0, DBConnMaxIdleTime: time.Second, DBConnMaxLifetime: time.Second}), "DB_WORKER_MAX_OPEN_CONNS")
 	require.ErrorContains(t, validateSchemasAndWorker(Config{PRTagsSchema: "bad-schema", GHReplicaSchema: "public", WorkerPollInterval: time.Second}), "PRTAGS_SCHEMA")
 	require.ErrorContains(t, validateSchemasAndWorker(Config{PRTagsSchema: "public", GHReplicaSchema: "bad-schema", WorkerPollInterval: time.Second}), "GHREPLICA_SCHEMA")
 	require.ErrorContains(t, validateSchemasAndWorker(Config{PRTagsSchema: "public", GHReplicaSchema: "public"}), "WORKER_POLL_INTERVAL")

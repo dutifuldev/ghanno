@@ -17,14 +17,16 @@ Keep the app env file pointing at that mounted key path:
 GITHUB_APP_PRIVATE_KEY_PATH=/home/bob/prtags/secrets/github-app.private-key.pem
 ```
 
-The shared Cloud SQL instance is connection-limited, so keep the default pool settings conservative unless you have intentionally split workers or moved the database:
+HTTP requests and workers use separate database pools. Keep both bounded on the shared Cloud SQL instance:
 
 ```env
 DB_NAME=ghreplica
 PRTAGS_SCHEMA=prtags
 GHREPLICA_SCHEMA=public
-DB_MAX_OPEN_CONNS=5
-DB_MAX_IDLE_CONNS=2
+DB_MAX_OPEN_CONNS=10
+DB_MAX_IDLE_CONNS=5
+DB_WORKER_MAX_OPEN_CONNS=3
+DB_WORKER_MAX_IDLE_CONNS=1
 DB_CONN_MAX_IDLE_TIME=5m
 DB_CONN_MAX_LIFETIME=30m
 ```

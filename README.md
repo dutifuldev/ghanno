@@ -129,7 +129,7 @@ curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/groups | jq '.data
 
 The important distinction is that `PRtags` stores the curation data, while the underlying PR and issue content still comes from `ghreplica`.
 
-By default, `group get` returns member refs only. If a caller wants cached PR or issue metadata too, it must opt in with `--include-metadata` in the CLI or `?include=metadata` in the HTTP API. `group list` keeps the lighter default shape and returns `member_count` plus `member_counts` by type.
+By default, `group get` returns member refs only. If a caller wants mirrored PR or issue metadata too, it must opt in with `--include-metadata` in the CLI or `?include=metadata` in the HTTP API. `group list` keeps the lighter default shape and returns `member_count` plus `member_counts` by type.
 
 ### Agent Intent Workflow
 
@@ -254,8 +254,10 @@ docker exec prtags-postgres \
   psql -U postgres -d prtags -c 'CREATE SCHEMA prtags;'
 
 export DATABASE_URL='postgres://postgres:prtags@127.0.0.1:55432/prtags?sslmode=disable'
-export DB_MAX_OPEN_CONNS=5
-export DB_MAX_IDLE_CONNS=2
+export DB_MAX_OPEN_CONNS=10
+export DB_MAX_IDLE_CONNS=5
+export DB_WORKER_MAX_OPEN_CONNS=3
+export DB_WORKER_MAX_IDLE_CONNS=1
 export DB_CONN_MAX_IDLE_TIME=5m
 export DB_CONN_MAX_LIFETIME=30m
 export PRTAGS_SCHEMA=prtags
@@ -345,6 +347,9 @@ schemas:
 That shared-database topology is what allows normal SQL joins between `PRtags`
 groups and `ghreplica` mirror tables. It deprecates the separate `PRtags`
 database deployment shape, but not the `PRtags` tables or data model.
+River jobs are part of the `PRtags` schema too. With `PRTAGS_SCHEMA=prtags`,
+`PRtags` should use `prtags.river_job` and should not share `ghreplica`'s
+`public.river_job` queue table.
 
 At minimum you need:
 

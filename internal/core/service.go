@@ -820,7 +820,7 @@ func (s *Service) GetGroup(ctx context.Context, groupPublicID string, options Ge
 		}
 	}
 
-	annotations, err := s.getAnnotationsForTarget(ctx, "group", group.GitHubRepositoryID, 0, &group.ID)
+	annotations, err := s.getAnnotationsForResolvedTarget(ctx, group.GitHubRepositoryID, "group", groupTargetKey(group.PublicID))
 	return group, memberViews, annotations, err
 }
 
@@ -1576,9 +1576,6 @@ func filteredTargetResultFromHydration(value database.FieldValue, summaries map[
 }
 
 func (s *Service) getAnnotationsForTarget(ctx context.Context, targetType string, repositoryID int64, objectNumber int, groupID *uint) (map[string]any, error) {
-	timer := database.StartQueryStep(ctx, "annotations_single")
-	defer timer.Done()
-
 	targetKey := objectTargetKey(repositoryID, targetType, objectNumber)
 	if targetType == "group" && groupID != nil {
 		group, err := s.lookupGroupByID(ctx, *groupID)
@@ -1587,20 +1584,53 @@ func (s *Service) getAnnotationsForTarget(ctx context.Context, targetType string
 		}
 		targetKey = groupTargetKey(group.PublicID)
 	}
+	return s.getAnnotationsForResolvedTarget(ctx, repositoryID, targetType, targetKey)
+}
 
-	var values []database.FieldValue
-	if err := s.db.WithContext(ctx).Preload("FieldDefinition").
-		Where("github_repository_id = ? AND target_type = ? AND target_key = ?", repositoryID, targetType, targetKey).
-		Order("field_definition_id ASC").
-		Find(&values).Error; err != nil {
+type annotationValueRow struct {
+	TargetType    string
+	TargetKey     string
+	FieldName     string
+	StringValue   *string
+	TextValue     *string
+	BoolValue     *bool
+	IntValue      *int64
+	EnumValue     *string
+	MultiEnumJSON datatypes.JSON
+}
+
+func (s *Service) getAnnotationsForResolvedTarget(ctx context.Context, repositoryID int64, targetType, targetKey string) (map[string]any, error) {
+	timer := database.StartQueryStep(ctx, "annotations_single")
+	defer timer.Done()
+
+	var rows []annotationValueRow
+	if err := s.db.WithContext(ctx).
+		Table(database.FieldValuesTable+" AS field_values").
+		Select("field_definitions.name AS field_name, field_values.string_value, field_values.text_value, field_values.bool_value, field_values.int_value, field_values.enum_value, field_values.multi_enum_json").
+		Joins("JOIN "+database.FieldDefinitionsTable+" AS field_definitions ON field_definitions.id = field_values.field_definition_id").
+		Where("field_values.github_repository_id = ? AND field_values.target_type = ? AND field_values.target_key = ?", repositoryID, targetType, targetKey).
+		Order("field_values.field_definition_id ASC").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
 	annotations := map[string]any{}
-	for _, value := range values {
-		annotations[value.FieldDefinition.Name] = fieldValueToAPI(value)
+	for _, row := range rows {
+		annotations[row.FieldName] = annotationRowToAPI(row)
 	}
 	return annotations, nil
+}
+
+func annotationRowToAPI(row annotationValueRow) any {
+	value := database.FieldValue{
+		StringValue:   row.StringValue,
+		TextValue:     row.TextValue,
+		BoolValue:     row.BoolValue,
+		IntValue:      row.IntValue,
+		EnumValue:     row.EnumValue,
+		MultiEnumJSON: row.MultiEnumJSON,
+	}
+	return fieldValueToAPI(value)
 }
 
 type annotationTarget struct {
@@ -1638,22 +1668,25 @@ func (s *Service) getAnnotationsForTargetKeys(ctx context.Context, repositoryID 
 	timer := database.StartQueryStep(ctx, "annotations_batch")
 	defer timer.Done()
 
-	var values []database.FieldValue
-	if err := s.db.WithContext(ctx).Preload("FieldDefinition").
-		Where("github_repository_id = ? AND target_type IN ? AND target_key IN ?", repositoryID, filters.targetTypes, filters.targetKeys).
-		Order("target_key ASC, field_definition_id ASC").
-		Find(&values).Error; err != nil {
+	var rows []annotationValueRow
+	if err := s.db.WithContext(ctx).
+		Table(database.FieldValuesTable+" AS field_values").
+		Select("field_values.target_type, field_values.target_key, field_definitions.name AS field_name, field_values.string_value, field_values.text_value, field_values.bool_value, field_values.int_value, field_values.enum_value, field_values.multi_enum_json").
+		Joins("JOIN "+database.FieldDefinitionsTable+" AS field_definitions ON field_definitions.id = field_values.field_definition_id").
+		Where("field_values.github_repository_id = ? AND field_values.target_type IN ? AND field_values.target_key IN ?", repositoryID, filters.targetTypes, filters.targetKeys).
+		Order("field_values.target_key ASC, field_values.field_definition_id ASC").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	for _, value := range values {
-		mapKey := annotationMapKey(value.TargetType, value.TargetKey)
+	for _, row := range rows {
+		mapKey := annotationMapKey(row.TargetType, row.TargetKey)
 		if _, ok := filters.wanted[mapKey]; !ok {
 			continue
 		}
 		if filters.result[mapKey] == nil {
 			filters.result[mapKey] = map[string]any{}
 		}
-		filters.result[mapKey][value.FieldDefinition.Name] = fieldValueToAPI(value)
+		filters.result[mapKey][row.FieldName] = annotationRowToAPI(row)
 	}
 	return filters.result, nil
 }

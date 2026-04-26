@@ -14,6 +14,8 @@ type Config struct {
 	DatabaseURL             string
 	DBMaxOpenConns          int
 	DBMaxIdleConns          int
+	DBWorkerMaxOpenConns    int
+	DBWorkerMaxIdleConns    int
 	DBConnMaxIdleTime       time.Duration
 	DBConnMaxLifetime       time.Duration
 	PRTagsSchema            string
@@ -33,8 +35,10 @@ func FromEnv() Config {
 	cfg := Config{
 		ListenAddr:              envOrDefault("LISTEN_ADDR", ":8081"),
 		DatabaseURL:             strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		DBMaxOpenConns:          envInt("DB_MAX_OPEN_CONNS", 5),
-		DBMaxIdleConns:          envInt("DB_MAX_IDLE_CONNS", 2),
+		DBMaxOpenConns:          envInt("DB_MAX_OPEN_CONNS", 10),
+		DBMaxIdleConns:          envInt("DB_MAX_IDLE_CONNS", 5),
+		DBWorkerMaxOpenConns:    envInt("DB_WORKER_MAX_OPEN_CONNS", 3),
+		DBWorkerMaxIdleConns:    envInt("DB_WORKER_MAX_IDLE_CONNS", 1),
 		DBConnMaxIdleTime:       envDuration("DB_CONN_MAX_IDLE_TIME", 5*time.Minute),
 		DBConnMaxLifetime:       envDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
 		PRTagsSchema:            envOrDefault("PRTAGS_SCHEMA", "public"),
@@ -108,6 +112,12 @@ func validatePool(c Config) error {
 		return errors.New("DB_MAX_IDLE_CONNS must be zero or positive")
 	case c.DBMaxIdleConns > c.DBMaxOpenConns:
 		return errors.New("DB_MAX_IDLE_CONNS cannot exceed DB_MAX_OPEN_CONNS")
+	case c.DBWorkerMaxOpenConns <= 0:
+		return errors.New("DB_WORKER_MAX_OPEN_CONNS must be positive")
+	case c.DBWorkerMaxIdleConns < 0:
+		return errors.New("DB_WORKER_MAX_IDLE_CONNS must be zero or positive")
+	case c.DBWorkerMaxIdleConns > c.DBWorkerMaxOpenConns:
+		return errors.New("DB_WORKER_MAX_IDLE_CONNS cannot exceed DB_WORKER_MAX_OPEN_CONNS")
 	case c.DBConnMaxIdleTime <= 0:
 		return errors.New("DB_CONN_MAX_IDLE_TIME must be positive")
 	case c.DBConnMaxLifetime <= 0:

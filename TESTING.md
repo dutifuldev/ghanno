@@ -178,6 +178,20 @@ For this repository:
 - An integration test should usually exercise a real boundary such as SQL,
   migrations, HTTP request handling, or client behavior.
 
+## Performance Regression Tests
+
+Hot read paths should have small query-count regression tests when a change is
+meant to improve or protect performance.
+
+Current examples live in `internal/core`:
+
+- `TestGetGroupReadPathQueryCount`
+- `TestSearchTextReadPathQueryCount`
+
+These tests are not a replacement for production timing checks. They catch the
+most common local regression: accidentally adding extra database round trips to
+`group get` or search hydration.
+
 ## Determinism
 
 Tests should be deterministic.

@@ -137,6 +137,7 @@ with restrictive file permissions.
 - field values
 - search documents
 - embeddings
+- River jobs in the configured `PRtags` schema
 
 `PRtags` does not own:
 
@@ -145,6 +146,10 @@ with restrictive file permissions.
 - reviews
 - comments
 - Git-backed change truth
+- `ghreplica`'s `public.river_job` table
+
+When `PRTAGS_SCHEMA=prtags`, `PRtags` uses `prtags.river_job`.
+It should not poll or mutate the larger `public.river_job` table owned by `ghreplica`.
 
 ## Current Docs
 

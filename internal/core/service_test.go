@@ -313,6 +313,34 @@ func TestGetGroupLoadsMirrorMetadataDirectly(t *testing.T) {
 	require.Equal(t, "alice", members[1].ObjectSummary.AuthorLogin)
 }
 
+func TestGetGroupReadPathQueryCount(t *testing.T) {
+	ctx := context.Background()
+	service, _, server := newTestService(t)
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "user", ID: "tester"}
+	_, err := service.CreateFieldDefinition(ctx, actor, "acme", "widgets", FieldDefinitionInput{
+		Name:        "theme",
+		ObjectScope: "group",
+		FieldType:   "text",
+	}, "")
+	require.NoError(t, err)
+	group, err := service.CreateGroup(ctx, actor, "acme", "widgets", GroupInput{Kind: "mixed", Title: "Auth work"}, "")
+	require.NoError(t, err)
+	_, err = service.AddGroupMember(ctx, actor, group.PublicID, "pull_request", 22, "")
+	require.NoError(t, err)
+	_, err = service.SetAnnotations(ctx, actor, "acme", "widgets", "group", 0, &group.ID, map[string]any{"theme": "auth"}, "")
+	require.NoError(t, err)
+
+	metrics := database.NewQueryMetrics()
+	readCtx := database.WithQueryMetrics(ctx, metrics)
+	_, members, annotations, err := service.GetGroup(readCtx, group.PublicID, GetGroupOptions{IncludeMetadata: true})
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	require.Equal(t, "auth", annotations["theme"])
+	require.LessOrEqual(t, metrics.Snapshot().QueryCount, 3)
+}
+
 func TestGetGroupOmitsMissingMirrorMetadata(t *testing.T) {
 	ctx := context.Background()
 	service, db, server := newTestService(t)
@@ -726,6 +754,31 @@ func TestSearchTextAndSimilarReturnIndexedResults(t *testing.T) {
 	similarResults, err := service.SearchSimilar(ctx, "acme", "widgets", "critical auth outage", []string{"pull_request", "issue", "group"}, 10)
 	require.NoError(t, err)
 	require.Len(t, similarResults, 3)
+}
+
+func TestSearchTextReadPathQueryCount(t *testing.T) {
+	ctx := context.Background()
+	service, db, server := newTestService(t)
+	defer server.Close()
+
+	actor := permissions.Actor{Type: "user", ID: "tester"}
+	_, err := service.CreateFieldDefinition(ctx, actor, "acme", "widgets", FieldDefinitionInput{
+		Name:         "intent",
+		ObjectScope:  "pull_request",
+		FieldType:    "text",
+		IsSearchable: true,
+	}, "")
+	require.NoError(t, err)
+	_, err = service.SetAnnotations(ctx, actor, "acme", "widgets", "pull_request", 22, nil, map[string]any{"intent": "retry auth safely"}, "")
+	require.NoError(t, err)
+	drainIndexJobs(t, ctx, db, service.indexer)
+
+	metrics := database.NewQueryMetrics()
+	readCtx := database.WithQueryMetrics(ctx, metrics)
+	results, err := service.SearchText(readCtx, "acme", "widgets", "auth", []string{"pull_request"}, 10)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.LessOrEqual(t, metrics.Snapshot().QueryCount, 4)
 }
 
 func TestListRepositoryAccessGrantsReturnsStoredGrants(t *testing.T) {
@@ -1412,7 +1465,7 @@ func newTestServiceWithBatchBehaviorAndChecker(t *testing.T, behavior batchBehav
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger: database.NewQueryMetricsLogger(logger.Default.LogMode(logger.Silent)),
 	})
 	require.NoError(t, err)
 	require.NoError(t, database.ApplyTestSchema(db))
