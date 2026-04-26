@@ -33,11 +33,51 @@ func NewSchemaReader(db *gorm.DB, schema string) *Reader {
 }
 
 func (r *Reader) Repository(ctx context.Context, owner, repo string) (Repository, error) {
+	if r.db != nil {
+		return r.repositoryJoined(ctx, owner, repo)
+	}
 	row, err := r.reader.RepositoryByOwnerName(ctx, owner, repo)
 	if err != nil {
 		return Repository{}, err
 	}
 	return mirror.RepositoryObjectFromRow(row), nil
+}
+
+type repositoryRow struct {
+	GitHubID    int64          `gorm:"column:github_id"`
+	Name        string         `gorm:"column:name"`
+	FullName    string         `gorm:"column:full_name"`
+	HTMLURL     string         `gorm:"column:html_url"`
+	Visibility  string         `gorm:"column:visibility"`
+	Private     bool           `gorm:"column:private"`
+	OwnerLogin  string         `gorm:"column:owner_login"`
+	JoinedOwner sql.NullString `gorm:"column:joined_owner"`
+}
+
+func (r *Reader) repositoryJoined(ctx context.Context, owner, repo string) (Repository, error) {
+	var row repositoryRow
+	err := r.db.WithContext(ctx).
+		Table(r.tables.Repositories+" AS repositories").
+		Select("repositories.github_id, repositories.name, repositories.full_name, repositories.html_url, repositories.visibility, repositories.private, repositories.owner_login, users.login AS joined_owner").
+		Joins("LEFT JOIN "+r.tables.Users+" AS users ON users.id = repositories.owner_id").
+		Where("repositories.owner_login = ? AND repositories.name = ?", owner, repo).
+		First(&row).Error
+	if err != nil {
+		return Repository{}, err
+	}
+	out := Repository{
+		ID:         row.GitHubID,
+		Name:       row.Name,
+		FullName:   row.FullName,
+		HTMLURL:    row.HTMLURL,
+		Visibility: row.Visibility,
+		Private:    row.Private,
+	}
+	out.Owner.Login = row.OwnerLogin
+	if row.JoinedOwner.Valid && row.JoinedOwner.String != "" {
+		out.Owner.Login = row.JoinedOwner.String
+	}
+	return out, nil
 }
 
 func (r *Reader) BatchObjects(ctx context.Context, repositoryID int64, objects []ObjectRef) ([]ObjectResult, error) {

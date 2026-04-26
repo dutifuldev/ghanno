@@ -20,7 +20,7 @@ Third, the model should allow stricter group kinds now without blocking more fle
 
 ## Referenced Objects
 
-Because `prtags` is a separate service, it cannot rely on database joins into `ghreplica`. So every curated object should be referenced in a stable, explicit way.
+Because `prtags` is a separate service, every curated object should be referenced in a stable, explicit way. Runtime reads may join or query the shared `ghreplica` mirror tables, but `prtags` should not copy GitHub-native PR or issue content into its own source-of-truth tables.
 
 The canonical shape should be:
 
@@ -52,7 +52,7 @@ Human-friendly locators can still exist as derived or cached fields. For example
 
 Those are useful for logs, URLs, CLI output, and caches, but they should not be the source of truth.
 
-Optionally, `prtags` can also cache a small local projection for display and search purposes, such as title, state, author, and updated time, but that projection should stay clearly separate from the source-of-truth reference.
+`prtags` should read display metadata such as title, state, author, updated time, and URL from the shared `ghreplica` mirror tables when needed.
 
 ## Core Tables
 

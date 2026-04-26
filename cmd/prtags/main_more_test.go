@@ -133,15 +133,17 @@ func TestAuthAndRuntimeHelpers(t *testing.T) {
 	require.Contains(t, saveOut.String(), "Logged in as dutifulbob")
 
 	_, err = openConfiguredDatabase(config.Config{
-		DatabaseURL:        "sqlite://" + filepath.Join(t.TempDir(), "prtags.db"),
-		DBMaxOpenConns:     1,
-		DBMaxIdleConns:     1,
-		DBConnMaxIdleTime:  time.Minute,
-		DBConnMaxLifetime:  time.Minute,
-		PRTagsSchema:       "public",
-		GHReplicaSchema:    "public",
-		WorkerPollInterval: time.Second,
-		EmbeddingModel:     "local-hash@1",
+		DatabaseURL:          "sqlite://" + filepath.Join(t.TempDir(), "prtags.db"),
+		DBMaxOpenConns:       1,
+		DBMaxIdleConns:       1,
+		DBWorkerMaxOpenConns: 1,
+		DBWorkerMaxIdleConns: 1,
+		DBConnMaxIdleTime:    time.Minute,
+		DBConnMaxLifetime:    time.Minute,
+		PRTagsSchema:         "public",
+		GHReplicaSchema:      "public",
+		WorkerPollInterval:   time.Second,
+		EmbeddingModel:       "local-hash@1",
 	})
 	require.Error(t, err)
 
@@ -160,7 +162,7 @@ func TestAuthAndRuntimeHelpers(t *testing.T) {
 		GitHubAppPrivateKeyPath: "",
 	}, mirror))
 
-	dispatcher, err := newRiverDispatcherForDB(db, nil, nil)
+	dispatcher, err := newRiverDispatcherForDB(db, "", nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, dispatcher)
 }

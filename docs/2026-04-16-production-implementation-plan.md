@@ -856,18 +856,11 @@ These are the right first auth targets because:
 
 Only after the login flow and write-permission checks are stable there should `PRtags` expand auth testing to other repos and org contexts.
 
-## Local Projection Policy
+## Mirror Read Policy
 
-Because `prtags` is a separate service, it keeps a small projected cache of GitHub object fields for display and search convenience.
+Because `prtags` is a separate service, it stores stable references to GitHub objects and reads display metadata from the shared `ghreplica` mirror tables when needed.
 
-That projection should be:
-
-- clearly marked as cached
-- small in scope
-- rebuildable from `ghreplica`
-- never treated as the source of truth
-
-Suggested projected fields:
+The displayed mirror fields should stay small:
 
 - title
 - state
@@ -875,14 +868,13 @@ Suggested projected fields:
 - updated_at
 - html_url
 
-For group reads, `PRtags` enriches member references on the server side by calling `ghreplica`'s batch object-read extension. The CLI keeps talking only to `PRtags`; it is not responsible for making separate `ghreplica` calls.
+For group reads, `PRtags` enriches member references on the server side by reading the shared `ghreplica` mirror tables directly. The CLI keeps talking only to `PRtags`; it is not responsible for making separate `ghreplica` calls.
 
 The current default read behavior is:
 
 - `group get`
-  - resolves members through one `ghreplica` batch request
+  - resolves members through direct shared-database mirror reads
   - returns member refs plus a small `object_summary`
-  - includes `object_summary_freshness` metadata
 - `group list`
   - returns group metadata and member counts by default
   - includes `member_count` and `member_counts`
@@ -899,22 +891,6 @@ The `object_summary` should stay intentionally small:
 - `updated_at`
 
 This is useful for list views and result rendering, but it remains intentionally small and secondary to the canonical GitHub-shaped data in `ghreplica`.
-
-The shipped refresh model is:
-
-- lazy refresh on reads when cached data is missing or obviously stale
-- background refresh during indexing and rebuild jobs
-- explicit freshness metadata on the returned summary
-
-If `ghreplica` is unavailable, `PRtags` can serve cached projected data with an explicit freshness signal instead of failing hard for every read.
-
-The projection should stay intentionally small:
-
-- `title`
-- `state`
-- `author`
-- `updated_at`
-- `html_url`
 
 Anything beyond that should need a strong reason.
 
@@ -1063,8 +1039,8 @@ Because `PRtags` depends on `ghreplica`, GitHub auth, and an embedding provider,
 
 These tests should cover:
 
-- projection refresh from `ghreplica`
-- stale projection fallback when `ghreplica` is unavailable
+- direct mirror-read failures
+- missing mirrored target behavior
 - GitHub-derived permission checks
 - permission-cache expiry behavior
 - embedding-provider failure behavior
@@ -1172,12 +1148,11 @@ Ship:
 
 - semantic search over fields marked `is_vectorized`
 
-### Phase 4: Hybrid Search And Projection
+### Phase 4: Hybrid Search
 
 Build:
 
 - filtered semantic search
-- optional cached GitHub projection
 - better ranking and excerpts
 
 Ship:
@@ -1190,7 +1165,6 @@ The core implementation direction is now pinned down enough to start building.
 
 The remaining open items are narrower:
 
-- whether cached GitHub projection is needed in phase 1 or can wait until phase 4
 - which concrete embedding provider and model identifier to adopt first
 
 Those details matter, but they do not block implementation of the durable core model.
