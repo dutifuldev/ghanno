@@ -1,13 +1,13 @@
-module github.com/dutifuldev/prtags
+module github.com/osolmaz/prtags
 
 go 1.25.7
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/dustinkirkland/golang-petname v0.0.0-20260215035315-f0c533e9ce9b
-	github.com/dutifuldev/ghreplica v0.1.2-0.20260425060954-beeafb55f33e
 	github.com/google/go-github/v74 v74.0.0
 	github.com/labstack/echo/v4 v4.15.1
+	github.com/osolmaz/ghreplica v0.1.2-0.20260722155940-077b9ac7b9ac
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/riverqueue/river v0.34.0
 	github.com/riverqueue/river/riverdriver/riverdatabasesql v0.34.0

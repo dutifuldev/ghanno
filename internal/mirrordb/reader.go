@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/dutifuldev/ghreplica/mirror"
+	"github.com/osolmaz/ghreplica/mirror"
 	"gorm.io/gorm"
 )
 

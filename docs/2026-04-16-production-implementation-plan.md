@@ -845,8 +845,8 @@ The first real auth validation happened against `dutifuldev` repositories.
 
 The initial targets should be:
 
-- `dutifuldev/ghreplica`
-- `dutifuldev/prtags`
+- `osolmaz/ghreplica`
+- `osolmaz/prtags`
 
 These are the right first auth targets because:
 
@@ -1082,10 +1082,10 @@ The rollout check should explicitly verify:
 
 The first rollout targets should be explicit:
 
-- start with `dutifuldev/ghreplica`
+- start with `osolmaz/ghreplica`
 - then expand to `openclaw/openclaw`
 
-`dutifuldev/ghreplica` is the right first validation target because it is small, controlled, and easy to inspect end to end while the system is still settling.
+`osolmaz/ghreplica` is the right first validation target because it is small, controlled, and easy to inspect end to end while the system is still settling.
 
 `openclaw/openclaw` should be the next validation target because it provides the larger and noisier real-world data needed to test projection freshness, search quality, and operational behavior at higher scale.
 

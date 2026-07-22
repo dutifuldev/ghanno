@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dutifuldev/prtags/internal/auth"
+	"github.com/osolmaz/prtags/internal/auth"
 	"github.com/stretchr/testify/require"
 )
 

@@ -34,12 +34,12 @@ The current CLI supports explicit set, get, and clear flows for annotations.
 Examples:
 
 ```bash
-prtags annotation pr set -R dutifuldev/ghreplica 25 \
+prtags annotation pr set -R osolmaz/ghreplica 25 \
   intent="Add a mirror-backed batch object read endpoint for downstream tools"
 
-prtags annotation pr get -R dutifuldev/ghreplica 25
+prtags annotation pr get -R osolmaz/ghreplica 25
 
-prtags annotation pr clear -R dutifuldev/ghreplica 25 intent
+prtags annotation pr clear -R osolmaz/ghreplica 25 intent
 ```
 
 The `clear` command removes the field value from the target. It does not write an empty string.

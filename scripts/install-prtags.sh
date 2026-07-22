@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="dutifuldev/prtags"
+REPO="osolmaz/prtags"
 BINARY="prtags"
 
 usage() {

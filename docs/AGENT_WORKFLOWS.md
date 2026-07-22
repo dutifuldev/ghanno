@@ -9,7 +9,7 @@ The goal is to keep the operational path short and idempotent.
 If an agent needs to write PR intent, it should first ensure that the repo has an `intent` field for pull requests.
 
 ```bash
-prtags field ensure -R dutifuldev/ghreplica \
+prtags field ensure -R osolmaz/ghreplica \
   --name intent \
   --display-name "Intent" \
   --scope pull_request \
@@ -35,7 +35,7 @@ The returned JSON includes an `action` field:
 Once the field exists, an agent can attach an intent value to a pull request:
 
 ```bash
-prtags annotation pr set -R dutifuldev/ghreplica 25 \
+prtags annotation pr set -R osolmaz/ghreplica 25 \
   intent="Add a mirror-backed batch object read endpoint for downstream tools"
 ```
 
@@ -44,7 +44,7 @@ prtags annotation pr set -R dutifuldev/ghreplica 25 \
 To verify the write:
 
 ```bash
-prtags annotation pr get -R dutifuldev/ghreplica 25
+prtags annotation pr get -R osolmaz/ghreplica 25
 ```
 
 That returns the current annotations for the PR, including `intent` when present.
@@ -54,7 +54,7 @@ That returns the current annotations for the PR, including `intent` when present
 If an agent needs to remove a value entirely, use the explicit clear command:
 
 ```bash
-prtags annotation pr clear -R dutifuldev/ghreplica 25 intent
+prtags annotation pr clear -R osolmaz/ghreplica 25 intent
 ```
 
 That removes the field value from the PR. It does not write an empty string.
@@ -62,7 +62,7 @@ That removes the field value from the PR. It does not write an empty string.
 The same pattern works for issues and groups:
 
 ```bash
-prtags annotation issue clear -R dutifuldev/ghreplica 11 quality
+prtags annotation issue clear -R osolmaz/ghreplica 11 quality
 prtags annotation group clear coherent-skunk-mbll summary
 ```
 
@@ -71,7 +71,7 @@ prtags annotation group clear coherent-skunk-mbll summary
 If the field is searchable, agents can find PRs by intent wording:
 
 ```bash
-prtags search text -R dutifuldev/ghreplica "batch object read endpoint"
+prtags search text -R osolmaz/ghreplica "batch object read endpoint"
 ```
 
 ## Inspect Fields Cleanly
@@ -79,7 +79,7 @@ prtags search text -R dutifuldev/ghreplica "batch object read endpoint"
 To inspect the repo field setup:
 
 ```bash
-prtags field list -R dutifuldev/ghreplica --scope pull_request --format table
+prtags field list -R osolmaz/ghreplica --scope pull_request --format table
 ```
 
 Useful filters:

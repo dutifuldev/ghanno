@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/embedding"
-	"github.com/dutifuldev/prtags/internal/mirrordb"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/embedding"
+	"github.com/osolmaz/prtags/internal/mirrordb"
 	"github.com/pgvector/pgvector-go"
 	"gorm.io/gorm"
 )

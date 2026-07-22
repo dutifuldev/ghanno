@@ -51,7 +51,7 @@ Before users can annotate anything, the repo defines which fields exist and what
 From the CLI:
 
 ```bash
-prtags field ensure -R dutifuldev/ghreplica \
+prtags field ensure -R osolmaz/ghreplica \
   --name intent \
   --display-name "Intent" \
   --scope pull_request \
@@ -59,7 +59,7 @@ prtags field ensure -R dutifuldev/ghreplica \
   --searchable \
   --vectorized
 
-prtags field ensure -R dutifuldev/ghreplica \
+prtags field ensure -R osolmaz/ghreplica \
   --name quality \
   --scope pull_request \
   --type enum \
@@ -70,7 +70,7 @@ prtags field ensure -R dutifuldev/ghreplica \
 From the API:
 
 ```bash
-curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/fields \
+curl -fsS http://127.0.0.1:8081/v1/repos/osolmaz/ghreplica/fields \
   -H 'Content-Type: application/json' \
   -H 'X-Actor: local-dev' \
   -d '{
@@ -92,21 +92,21 @@ Once fields exist, users can create groups, attach PRs or issues to them, and an
 From the CLI:
 
 ```bash
-GROUP_ID=$(prtags group create -R dutifuldev/ghreplica \
+GROUP_ID=$(prtags group create -R osolmaz/ghreplica \
   --kind mixed \
   --title "Rename hardening work" \
   --description "Repository rename safety and follow-up cleanup" \
   --server http://127.0.0.1:8081 | jq -r '.data.id')
 
 prtags group add-pr "$GROUP_ID" 23 --server http://127.0.0.1:8081
-prtags annotation pr set -R dutifuldev/ghreplica 23 intent="harden rename handling" quality=high
+prtags annotation pr set -R osolmaz/ghreplica 23 intent="harden rename handling" quality=high
 prtags annotation group set "$GROUP_ID" summary="rename hardening, reused-name safety, and refresh cleanup"
 ```
 
 From the API:
 
 ```bash
-curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/groups \
+curl -fsS http://127.0.0.1:8081/v1/repos/osolmaz/ghreplica/groups \
   -H 'Content-Type: application/json' \
   -H 'X-Actor: local-dev' \
   -d '{
@@ -116,7 +116,7 @@ curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/groups \
     "status": "open"
   }' | jq
 
-curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/pulls/23/annotations \
+curl -fsS http://127.0.0.1:8081/v1/repos/osolmaz/ghreplica/pulls/23/annotations \
   -H 'Content-Type: application/json' \
   -H 'X-Actor: local-dev' \
   -d '{
@@ -124,7 +124,7 @@ curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/pulls/23/annotatio
     "quality": "high"
   }' | jq
 
-curl -fsS http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/groups | jq '.data[0].id'
+curl -fsS http://127.0.0.1:8081/v1/repos/osolmaz/ghreplica/groups | jq '.data[0].id'
 ```
 
 The important distinction is that `PRtags` stores the curation data, while the underlying PR and issue content still comes from `ghreplica`.
@@ -136,7 +136,7 @@ By default, `group get` returns member refs only. If a caller wants mirrored PR 
 For the common agent workflow of attaching intent to a PR, the practical flow is:
 
 ```bash
-prtags field ensure -R dutifuldev/ghreplica \
+prtags field ensure -R osolmaz/ghreplica \
   --name intent \
   --display-name "Intent" \
   --scope pull_request \
@@ -144,11 +144,11 @@ prtags field ensure -R dutifuldev/ghreplica \
   --searchable \
   --vectorized
 
-prtags annotation pr set -R dutifuldev/ghreplica 25 \
+prtags annotation pr set -R osolmaz/ghreplica 25 \
   intent="Add a mirror-backed batch object read endpoint for downstream tools"
 
-prtags annotation pr get -R dutifuldev/ghreplica 25
-prtags search text -R dutifuldev/ghreplica "batch object read endpoint"
+prtags annotation pr get -R osolmaz/ghreplica 25
+prtags search text -R osolmaz/ghreplica "batch object read endpoint"
 ```
 
 `field ensure` is the idempotent setup path. It creates the field if it is missing and updates it if the live field definition has drifted from the requested shape.
@@ -156,8 +156,8 @@ prtags search text -R dutifuldev/ghreplica "batch object read endpoint"
 If an agent needs to remove an annotation entirely, use the explicit `clear` command rather than writing an empty string:
 
 ```bash
-prtags annotation pr clear -R dutifuldev/ghreplica 25 intent
-prtags annotation issue clear -R dutifuldev/ghreplica 11 quality
+prtags annotation pr clear -R osolmaz/ghreplica 25 intent
+prtags annotation issue clear -R osolmaz/ghreplica 11 quality
 prtags annotation group clear coherent-skunk-mbll summary
 ```
 
@@ -202,7 +202,7 @@ With `--include-metadata` or `?include=metadata`, a member can also include:
   "object_summary": {
     "title": "Fix repository rename hardening name reuse regressions",
     "state": "closed",
-    "html_url": "https://github.com/dutifuldev/ghreplica/pull/24",
+    "html_url": "https://github.com/osolmaz/ghreplica/pull/24",
     "author_login": "dutifulbob"
   }
 }
@@ -278,10 +278,10 @@ If you want to test outbound group comments locally, also set `GITHUB_APP_ID`, `
 Once the server is up, these are the most useful manual operations:
 
 ```bash
-go run ./cmd/prtags field create -R dutifuldev/ghreplica --name intent --scope pull_request --type text --searchable --vectorized
-go run ./cmd/prtags group create -R dutifuldev/ghreplica --kind mixed --title "Rename hardening work"
-go run ./cmd/prtags annotation pr set -R dutifuldev/ghreplica 23 intent="harden rename handling"
-go run ./cmd/prtags search text -R dutifuldev/ghreplica "rename hardening"
+go run ./cmd/prtags field create -R osolmaz/ghreplica --name intent --scope pull_request --type text --searchable --vectorized
+go run ./cmd/prtags group create -R osolmaz/ghreplica --kind mixed --title "Rename hardening work"
+go run ./cmd/prtags annotation pr set -R osolmaz/ghreplica 23 intent="harden rename handling"
+go run ./cmd/prtags search text -R osolmaz/ghreplica "rename hardening"
 ```
 
 The CLI automatically reads `PRTAGS_GITHUB_TOKEN`, `GITHUB_TOKEN`, or `GH_TOKEN` for authenticated writes. In local development, if you run the server with `ALLOW_UNAUTH_WRITES=true`, it will also accept `X-Actor` and default to a `local-dev` actor when that header is missing.
@@ -290,14 +290,14 @@ If you want to sanity-check a local instance quickly, these endpoints are usuall
 
 - `GET http://127.0.0.1:8081/healthz`
 - `GET http://127.0.0.1:8081/readyz`
-- `GET http://127.0.0.1:8081/v1/repos/dutifuldev/ghreplica/fields`
+- `GET http://127.0.0.1:8081/v1/repos/osolmaz/ghreplica/fields`
 
 ## Local Build And Install
 
 If you want the released CLI, the easiest install path is:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dutifuldev/prtags/main/scripts/install-prtags.sh | bash
+curl -fsSL https://raw.githubusercontent.com/osolmaz/prtags/main/scripts/install-prtags.sh | bash
 ```
 
 That script detects Linux versus macOS, picks the right release archive, and installs `prtags` into `/usr/local/bin` when possible or `~/.local/bin` otherwise.
@@ -305,13 +305,13 @@ That script detects Linux versus macOS, picks the right release archive, and ins
 If you want to install a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dutifuldev/prtags/main/scripts/install-prtags.sh | bash -s -- --version v0.1.0
+curl -fsSL https://raw.githubusercontent.com/osolmaz/prtags/main/scripts/install-prtags.sh | bash -s -- --version v0.1.0
 ```
 
 If you want to install into a custom directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dutifuldev/prtags/main/scripts/install-prtags.sh | bash -s -- --bin-dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/osolmaz/prtags/main/scripts/install-prtags.sh | bash -s -- --bin-dir "$HOME/.local/bin"
 ```
 
 If you only want the CLI locally, build `prtags` directly from this repo:
@@ -324,11 +324,11 @@ go build -o /tmp/prtags ./cmd/prtags
 You can then run commands like:
 
 ```bash
-/tmp/prtags field list -R dutifuldev/ghreplica
-/tmp/prtags group list -R dutifuldev/ghreplica
+/tmp/prtags field list -R osolmaz/ghreplica
+/tmp/prtags group list -R osolmaz/ghreplica
 /tmp/prtags group get coherent-skunk-mbll
 /tmp/prtags group get coherent-skunk-mbll --include-metadata
-/tmp/prtags search text -R dutifuldev/ghreplica "rename hardening"
+/tmp/prtags search text -R osolmaz/ghreplica "rename hardening"
 ```
 
 This is the simplest local install path when you only need the client.

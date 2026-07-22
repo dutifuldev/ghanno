@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/core"
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/jsend"
-	"github.com/dutifuldev/prtags/internal/permissions"
+	"github.com/osolmaz/prtags/internal/core"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/jsend"
+	"github.com/osolmaz/prtags/internal/permissions"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )

@@ -74,7 +74,7 @@ mirror schema.
 `prtags` should continue to own its migrations and table definitions for the
 curation schema.
 
-`prtags` should import `github.com/dutifuldev/ghreplica/mirror` and use
+`prtags` should import `github.com/osolmaz/ghreplica/mirror` and use
 `mirror.NewSchemaReader(db, configuredMirrorSchema)` for mirror reads.
 
 The dependency direction should be one-way:

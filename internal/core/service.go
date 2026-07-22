@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/mirrordb"
-	"github.com/dutifuldev/prtags/internal/permissions"
-	"github.com/dutifuldev/prtags/internal/publicid"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/mirrordb"
+	"github.com/osolmaz/prtags/internal/permissions"
+	"github.com/osolmaz/prtags/internal/publicid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dutifuldev/prtags/internal/publicid"
+	"github.com/osolmaz/prtags/internal/publicid"
 	"gorm.io/gorm"
 )
 

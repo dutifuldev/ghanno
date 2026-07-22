@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/dutifuldev/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/database"
 )
 
 const repositoryAccessGrantRoleWriter = "writer"

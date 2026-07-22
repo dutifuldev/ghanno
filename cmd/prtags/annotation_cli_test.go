@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dutifuldev/prtags/internal/jsend"
+	"github.com/osolmaz/prtags/internal/jsend"
 	"github.com/stretchr/testify/require"
 )
 

@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/cli"
-	"github.com/dutifuldev/prtags/internal/jsend"
+	"github.com/osolmaz/prtags/internal/cli"
+	"github.com/osolmaz/prtags/internal/jsend"
 	"github.com/spf13/cobra"
 )
 

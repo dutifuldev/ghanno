@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/githubapi"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/githubapi"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

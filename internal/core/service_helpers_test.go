@@ -8,8 +8,8 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/permissions"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/permissions"
 	"github.com/stretchr/testify/require"
 	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"

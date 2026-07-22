@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/database"
 	"github.com/stretchr/testify/require"
 	"gorm.io/datatypes"
 )

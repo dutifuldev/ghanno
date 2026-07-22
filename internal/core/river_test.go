@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/database"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dutifuldev/prtags/internal/auth"
-	"github.com/dutifuldev/prtags/internal/config"
-	"github.com/dutifuldev/prtags/internal/core"
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/mirrordb"
-	"github.com/dutifuldev/prtags/internal/permissions"
+	"github.com/osolmaz/prtags/internal/auth"
+	"github.com/osolmaz/prtags/internal/config"
+	"github.com/osolmaz/prtags/internal/core"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/mirrordb"
+	"github.com/osolmaz/prtags/internal/permissions"
 	"github.com/spf13/cobra"
 )
 

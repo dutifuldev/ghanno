@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/database"
-	"github.com/dutifuldev/prtags/internal/githubapi"
-	"github.com/dutifuldev/prtags/internal/mirrordb"
+	"github.com/osolmaz/prtags/internal/database"
+	"github.com/osolmaz/prtags/internal/githubapi"
+	"github.com/osolmaz/prtags/internal/mirrordb"
 	"gorm.io/gorm"
 )
 

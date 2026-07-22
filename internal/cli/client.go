@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dutifuldev/prtags/internal/auth"
+	"github.com/osolmaz/prtags/internal/auth"
 )
 
 type Client struct {

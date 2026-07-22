@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dutifuldev/ghreplica/mirror"
+	"github.com/osolmaz/ghreplica/mirror"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
