@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/osolmaz/prtags/internal/core"
 	"github.com/osolmaz/prtags/internal/database"
 	"github.com/osolmaz/prtags/internal/jsend"
 	"github.com/osolmaz/prtags/internal/permissions"
-	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
