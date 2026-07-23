@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/osolmaz/prtags/internal/core"
 	"github.com/labstack/echo/v4"
+	"github.com/osolmaz/prtags/internal/core"
 	"github.com/stretchr/testify/require"
 )
 
